@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Variables de entorno con secretos: solo se commitea .env.example ###
+.env
+.env.*
+!.env.example
