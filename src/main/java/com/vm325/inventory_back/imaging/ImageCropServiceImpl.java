@@ -19,6 +19,13 @@ import java.io.IOException;
 @Service
 public class ImageCropServiceImpl implements ImageCropService {
 
+    // Las fotos de celular llegan a 12 MP o más, pero el recorte final mide
+    // ~1000 px de ancho (CropSpec): procesarlas completas solo cuesta memoria
+    // y tiempo (con 1 vCPU, ~13 s por documento y ~950 MiB con dos a la vez).
+    // Es el mismo límite que aplica el frontend antes de subirlas; aquí
+    // cubre a cualquier cliente que mande la foto original.
+    static final int MAX_WORKING_DIMENSION_PX = 2560;
+
     private final ExifOrientationNormalizer exifOrientationNormalizer;
     private final CardDetectionService cardDetectionService;
     private final ImageEnhancementService imageEnhancementService;
@@ -63,7 +70,22 @@ public class ImageCropServiceImpl implements ImageCropService {
         if (source == null) {
             throw new IllegalArgumentException("El archivo no es una imagen válida o su formato no es soportado");
         }
-        return source;
+        return limitResolution(source);
+    }
+
+    // Se reduce justo al decodificar, antes de EXIF y rotación (que conservan
+    // el lado mayor), para que detectCorners y cropAndFit trabajen siempre en
+    // el mismo espacio de píxeles: las esquinas que el usuario ajusta sobre la
+    // imagen de detectCorners valen tal cual al generar el documento.
+    private BufferedImage limitResolution(BufferedImage source) {
+        int longestSide = Math.max(source.getWidth(), source.getHeight());
+        if (longestSide <= MAX_WORKING_DIMENSION_PX) {
+            return source;
+        }
+        double scale = (double) MAX_WORKING_DIMENSION_PX / longestSide;
+        return scaleTo(source,
+                Math.max(1, (int) Math.round(source.getWidth() * scale)),
+                Math.max(1, (int) Math.round(source.getHeight() * scale)));
     }
 
     private BufferedImage centerCropToAspectRatio(BufferedImage source, double targetAspectRatio) {
