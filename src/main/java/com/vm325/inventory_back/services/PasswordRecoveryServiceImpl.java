@@ -37,8 +37,10 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
         }
         try {
             String token = verificationCodeService.issueResetToken(user);
+            // /auth/reset es la PÁGINA del frontend. No usar /auth/reset-password: esa ruta
+            // es el endpoint POST del API y el proxy del frontend se la llevaría al backend.
             String link = UriComponentsBuilder.fromUriString(frontendUrl)
-                    .path("/auth/reset-password")
+                    .path("/auth/reset")
                     .queryParam("token", token)
                     .build().toUriString();
             mailService.sendPasswordReset(user.getEmail(), user.getName(), link,
