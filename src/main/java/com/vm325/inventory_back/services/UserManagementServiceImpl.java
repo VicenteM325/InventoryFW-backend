@@ -41,12 +41,18 @@ public class UserManagementServiceImpl implements UserManagementService {
                     "Ya existe un usuario con el nombre de usuario " + dto.getUserName());
         }
 
+        String email = normalizeEmail(dto.getEmail());
+        assertEmailAvailable(email, null);
+
         User user = new User();
         user.setName(dto.getName());
         user.setUserName(dto.getUserName());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
         user.setRole(resolveRole(dto.getRoleName()));
         user.setActive(true);
+        user.setEmail(email);
+        // Con correo registrado la cuenta nace protegida con verificación en dos pasos.
+        user.setTwoFactorEnabled(email != null);
 
         return toDto(userRepository.save(user));
     }
@@ -54,8 +60,16 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     public UserResponseDto update(UUID id, UserUpdateDto dto) {
         User user = getUserOrThrow(id);
+        String email = normalizeEmail(dto.getEmail());
+        assertEmailAvailable(email, user);
+
         user.setName(dto.getName());
         user.setRole(resolveRole(dto.getRoleName()));
+        user.setEmail(email);
+        if (email == null) {
+            // Sin correo no hay a dónde enviar el código: 2FA no puede seguir activa.
+            user.setTwoFactorEnabled(false);
+        }
         return toDto(userRepository.save(user));
     }
 
@@ -64,6 +78,25 @@ public class UserManagementServiceImpl implements UserManagementService {
         User user = getUserOrThrow(id);
         user.setActive(active);
         return toDto(userRepository.save(user));
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+        return email.trim().toLowerCase();
+    }
+
+    private void assertEmailAvailable(String email, User current) {
+        if (email == null) {
+            return;
+        }
+        userRepository.findByEmailIgnoreCase(email).ifPresent(other -> {
+            if (current == null || !other.getUserId().equals(current.getUserId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Ya existe un usuario con el correo " + email);
+            }
+        });
     }
 
     private Role resolveRole(String roleName) {
@@ -89,6 +122,8 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .userId(user.getUserId())
                 .name(user.getName())
                 .userName(user.getUserName())
+                .email(user.getEmail())
+                .twoFactorEnabled(user.isTwoFactorEnabled())
                 .roleName(user.getRole().getName().toString())
                 .active(user.isActive())
                 .build();
