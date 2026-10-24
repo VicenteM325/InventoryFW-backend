@@ -10,6 +10,7 @@ import com.vm325.inventory_back.repositories.RoleRepository;
 import com.vm325.inventory_back.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -63,8 +64,15 @@ public class UserManagementServiceImpl implements UserManagementService {
         String email = normalizeEmail(dto.getEmail());
         assertEmailAvailable(email, user);
 
+        Role newRole = resolveRole(dto.getRoleName());
+        if (user.getRole().getName() == RoleList.ROLE_ADMIN && newRole.getName() != RoleList.ROLE_ADMIN) {
+            // Quitar el rol admin equivale a perder acceso de administración.
+            assertNotSelf(user, "No puede quitarse a sí mismo el rol de administrador");
+            assertNotLastAdmin(user, "Debe existir al menos un administrador activo");
+        }
+
         user.setName(dto.getName());
-        user.setRole(resolveRole(dto.getRoleName()));
+        user.setRole(newRole);
         user.setEmail(email);
         if (email == null) {
             // Sin correo no hay a dónde enviar el código: 2FA no puede seguir activa.
@@ -76,8 +84,26 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     public UserResponseDto setActive(UUID id, boolean active) {
         User user = getUserOrThrow(id);
+        if (!active) {
+            assertNotSelf(user, "No puede desactivar su propia cuenta");
+            assertNotLastAdmin(user, "No se puede desactivar al último administrador activo");
+        }
         user.setActive(active);
         return toDto(userRepository.save(user));
+    }
+
+    private void assertNotSelf(User target, String message) {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && target.getUserName().equals(authentication.getName())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, message);
+        }
+    }
+
+    private void assertNotLastAdmin(User target, String message) {
+        boolean activeAdmin = target.isActive() && target.getRole().getName() == RoleList.ROLE_ADMIN;
+        if (activeAdmin && userRepository.countByRole_NameAndActiveTrue(RoleList.ROLE_ADMIN) <= 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, message);
+        }
     }
 
     private String normalizeEmail(String email) {

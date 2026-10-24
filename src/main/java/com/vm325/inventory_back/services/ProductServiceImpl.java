@@ -50,6 +50,15 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponseDto update(Long id, ProductRequestDto dto) {
         Product product = getProductOrThrow(id);
 
+        // Sin esta comprobación, repetir el código de otro producto terminaba
+        // en una violación de unicidad de la BD y un 500 genérico.
+        productRepository.findByBarcode(dto.getBarcode()).ifPresent(other -> {
+            if (!other.getProductId().equals(id)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Ya existe un producto con el código de barras " + dto.getBarcode());
+            }
+        });
+
         product.setName(dto.getName());
         product.setBarcode(dto.getBarcode());
         product.setDescription(dto.getDescription());
