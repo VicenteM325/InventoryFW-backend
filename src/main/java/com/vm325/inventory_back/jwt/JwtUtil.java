@@ -5,6 +5,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,6 +23,20 @@ public class JwtUtil {
 
     @Value("${jwt.expiration}")
     private int expiration;
+
+    // HS256 exige una clave de al menos 256 bits; con una más corta fallaba en
+    // cada login. Se valida al arrancar para fallar rápido y con mensaje claro.
+    @PostConstruct
+    void validateSecret() {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException("JWT_SECRET debe tener al menos 32 caracteres");
+        }
+    }
+
+    /** Duración del JWT en segundos; la cookie de sesión usa el mismo valor. */
+    public int getExpirationSeconds() {
+        return expiration;
+    }
 
     public String generateToken(Authentication authentication){
         UserDetails mainUser = (UserDetails) authentication.getPrincipal();
