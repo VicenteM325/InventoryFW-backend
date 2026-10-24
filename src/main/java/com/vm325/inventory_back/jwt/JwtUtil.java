@@ -38,17 +38,53 @@ public class JwtUtil {
         return expiration;
     }
 
+    private static final String PURPOSE_CLAIM = "purpose";
+    private static final String PURPOSE_2FA = "2fa";
+    private static final long CHALLENGE_TTL_MS = 10 * 60 * 1000L;
+
     public String generateToken(Authentication authentication){
         UserDetails mainUser = (UserDetails) authentication.getPrincipal();
+        return generateToken(mainUser.getUsername());
+    }
+
+    /** Token de sesión (el que viaja en la cookie jwt). */
+    public String generateToken(String userName){
         SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        return Jwts.builder().setSubject(mainUser.getUsername())
+        return Jwts.builder().setSubject(userName)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(new Date().getTime() + expiration * 1000L))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
+    /**
+     * Token efímero que acredita que la contraseña ya fue validada y que falta
+     * el segundo factor. No sirve como sesión: validateToken lo rechaza.
+     */
+    public String generateChallengeToken(String userName){
+        SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        return Jwts.builder().setSubject(userName)
+                .claim(PURPOSE_CLAIM, PURPOSE_2FA)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(new Date().getTime() + CHALLENGE_TTL_MS))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    /** Devuelve el usuario de un challenge válido; lanza JwtException si es inválido, vencido o de otro tipo. */
+    public String extractChallengeUser(String token){
+        Claims claims = extractAllClaims(token);
+        if (!PURPOSE_2FA.equals(claims.get(PURPOSE_CLAIM, String.class))) {
+            throw new io.jsonwebtoken.JwtException("Token de verificación inválido");
+        }
+        return claims.getSubject();
+    }
+
     public Boolean validateToken(String token, UserDetails userDetails){
+        // Un challenge de 2FA nunca debe aceptarse como sesión.
+        if (extractAllClaims(token).get(PURPOSE_CLAIM) != null) {
+            return false;
+        }
         final String userName = extractUserName(token);
         return (userName.equals(userDetails.getUsername()) && !isTokenExpired(token));
     }
