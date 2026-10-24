@@ -1,12 +1,15 @@
 package com.vm325.inventory_back.controllers;
 
 import com.vm325.inventory_back.dtos.ApiMessage;
+import com.vm325.inventory_back.dtos.ForgotPasswordDto;
 import com.vm325.inventory_back.dtos.LoginResponseDto;
 import com.vm325.inventory_back.dtos.LoginUserDto;
+import com.vm325.inventory_back.dtos.ResetPasswordDto;
 import com.vm325.inventory_back.dtos.TwoFactorResendDto;
 import com.vm325.inventory_back.dtos.TwoFactorVerifyDto;
 import com.vm325.inventory_back.entities.User;
 import com.vm325.inventory_back.services.AuthService;
+import com.vm325.inventory_back.services.PasswordRecoveryService;
 import com.vm325.inventory_back.services.UserService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,11 +27,14 @@ public class AuthController {
 
     private final AuthService authService;
     private final UserService userService;
+    private final PasswordRecoveryService passwordRecoveryService;
 
     @Autowired
-    public AuthController(AuthService authService, UserService userService) {
+    public AuthController(AuthService authService, UserService userService,
+                          PasswordRecoveryService passwordRecoveryService) {
         this.authService = authService;
         this.userService = userService;
+        this.passwordRecoveryService = passwordRecoveryService;
     }
 
     @PostMapping("/login")
@@ -60,6 +66,20 @@ public class AuthController {
     public ResponseEntity<ApiMessage> resendTwoFactor(@Valid @RequestBody TwoFactorResendDto dto) {
         authService.resendTwoFactor(dto.getChallengeToken());
         return ResponseEntity.ok(new ApiMessage("Se envió un nuevo código a su correo"));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiMessage> forgotPassword(@Valid @RequestBody ForgotPasswordDto dto) {
+        passwordRecoveryService.requestReset(dto.getEmail());
+        // Misma respuesta exista o no el correo (no se permite enumerar cuentas).
+        return ResponseEntity.ok(new ApiMessage(
+                "Si el correo está registrado, recibirá un enlace para restablecer su contraseña"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiMessage> resetPassword(@Valid @RequestBody ResetPasswordDto dto) {
+        passwordRecoveryService.resetPassword(dto.getToken(), dto.getNewPassword());
+        return ResponseEntity.ok(new ApiMessage("Contraseña actualizada. Ya puede iniciar sesión"));
     }
 
     @GetMapping("/check-auth")
