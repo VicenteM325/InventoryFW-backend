@@ -2,6 +2,7 @@ package com.vm325.inventory_back.config;
 
 import com.vm325.inventory_back.jwt.JwtAuthenticationFilter;
 import com.vm325.inventory_back.jwt.JwtEntryPoint;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -25,6 +26,9 @@ import java.util.List;
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
+
+    @Value("${cors.allowed-origins}")
+    private List<String> allowedOrigins;
 
     @Bean
     protected SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -66,14 +70,12 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Agrega los orígenes de Docker además del de desarrollo local
-        configuration.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://localhost:3000",
-                "http://localhost"
-        ));
+        // Orígenes permitidos configurables (CORS_ALLOWED_ORIGINS, separados por coma).
+        configuration.setAllowedOrigins(allowedOrigins);
 
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+        // PATCH es necesario para activar/desactivar usuarios y productos,
+        // marcar notificaciones como leídas y atender alertas de stock.
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept"));
         configuration.setAllowCredentials(true);
 
