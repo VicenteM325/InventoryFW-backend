@@ -85,6 +85,18 @@ public class AccountServiceImpl implements AccountService {
         return UserResponseDto.from(user);
     }
 
+    @Override
+    public void changePassword(String currentPassword, String newPassword) {
+        User user = userService.getUserDetails();
+        requirePassword(user, currentPassword);
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "La nueva contraseña debe ser distinta de la actual");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
     private void requirePassword(User user, String currentPassword) {
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La contraseña actual es incorrecta");

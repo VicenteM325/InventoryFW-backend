@@ -1,6 +1,7 @@
 package com.vm325.inventory_back.controllers;
 
 import com.vm325.inventory_back.dtos.ApiMessage;
+import com.vm325.inventory_back.dtos.ChangePasswordDto;
 import com.vm325.inventory_back.dtos.CodeDto;
 import com.vm325.inventory_back.dtos.PasswordConfirmDto;
 import com.vm325.inventory_back.dtos.UpdateEmailDto;
@@ -19,6 +20,12 @@ import org.springframework.web.bind.annotation.*;
 public class AccountController {
 
     private final AccountService accountService;
+
+    @PutMapping("/password")
+    public ResponseEntity<ApiMessage> changePassword(@Valid @RequestBody ChangePasswordDto dto) {
+        accountService.changePassword(dto.getCurrentPassword(), dto.getNewPassword());
+        return ResponseEntity.ok(new ApiMessage("Contraseña actualizada"));
+    }
 
     @PutMapping("/email")
     public ResponseEntity<UserResponseDto> updateEmail(@Valid @RequestBody UpdateEmailDto dto) {
