@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 // Reportes de ventas e inventario, exportables en Excel y PDF (RF-07).
@@ -57,22 +57,15 @@ public class ReportController {
     public ResponseEntity<byte[]> salesReport(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(defaultValue = "PDF") String format) {
+            @RequestParam(defaultValue = "PDF") String format,
+            Authentication authentication) {
 
         LocalDate today = LocalDate.now();
         LocalDate effectiveFrom = (from != null) ? from : today;
         LocalDate effectiveTo = (to != null) ? to : today;
 
-        if (effectiveFrom.isAfter(effectiveTo)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "La fecha 'from' no puede ser posterior a 'to'");
-        }
-
-        LocalDateTime fromDateTime = effectiveFrom.atStartOfDay();
-        LocalDateTime toDateTime = effectiveTo.plusDays(1).atStartOfDay().minusNanos(1);
-
         ReportFormat reportFormat = parseFormat(format);
-        byte[] report = salesReportService.generate(fromDateTime, toDateTime, reportFormat);
+        byte[] report = salesReportService.generate(effectiveFrom, effectiveTo, reportFormat, authentication.getName());
 
         String filename = "reporte_ventas_" + effectiveFrom.format(FILENAME_DATE)
                 + "_" + effectiveTo.format(FILENAME_DATE) + "." + reportFormat.getFileExtension();
@@ -81,9 +74,10 @@ public class ReportController {
     }
 
     @GetMapping("/inventory")
-    public ResponseEntity<byte[]> inventoryReport(@RequestParam(defaultValue = "PDF") String format) {
+    public ResponseEntity<byte[]> inventoryReport(@RequestParam(defaultValue = "PDF") String format,
+                                                  Authentication authentication) {
         ReportFormat reportFormat = parseFormat(format);
-        byte[] report = inventoryReportService.generate(reportFormat);
+        byte[] report = inventoryReportService.generate(reportFormat, authentication.getName());
 
         String filename = "reporte_inventario_" + LocalDate.now().format(FILENAME_DATE)
                 + "." + reportFormat.getFileExtension();
