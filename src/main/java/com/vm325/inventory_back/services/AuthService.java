@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -23,17 +24,20 @@ public class AuthService {
     private final CookieService cookieService;
     private final VerificationCodeService verificationCodeService;
     private final MailService mailService;
+    private final LoginAttemptService loginAttemptService;
 
     @Autowired
     public AuthService(UserService userService, JwtUtil jwtUtil,
                        AuthenticationManagerBuilder authenticationManagerBuilder, CookieService cookieService,
-                       VerificationCodeService verificationCodeService, MailService mailService) {
+                       VerificationCodeService verificationCodeService, MailService mailService,
+                       LoginAttemptService loginAttemptService) {
         this.userService = userService;
         this.jwtUtil = jwtUtil;
         this.authenticationManagerBuilder = authenticationManagerBuilder;
         this.cookieService = cookieService;
         this.verificationCodeService = verificationCodeService;
         this.mailService = mailService;
+        this.loginAttemptService = loginAttemptService;
     }
 
     /**
@@ -43,8 +47,19 @@ public class AuthService {
      * abre la sesión de inmediato.
      */
     public LoginResponseDto login(String username, String password, HttpServletResponse response) {
-        authenticationManagerBuilder.getObject()
-                .authenticate(new UsernamePasswordAuthenticationToken(username, password));
+        long locked = loginAttemptService.secondsLocked(username);
+        if (locked > 0) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Demasiados intentos fallidos. Intente de nuevo en " + ((locked + 59) / 60) + " minuto(s)");
+        }
+        try {
+            authenticationManagerBuilder.getObject()
+                    .authenticate(new UsernamePasswordAuthenticationToken(username, password));
+        } catch (AuthenticationException e) {
+            loginAttemptService.recordFailure(username);
+            throw e;
+        }
+        loginAttemptService.recordSuccess(username);
 
         User user = userService.findByUserName(username);
         if (user.isTwoFactorEnabled()) {
