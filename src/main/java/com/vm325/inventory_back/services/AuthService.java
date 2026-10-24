@@ -38,7 +38,7 @@ public class AuthService {
         SecurityContextHolder.getContext().setAuthentication(authResult);
 
         String jwt = jwtUtil.generateToken(authResult);
-        cookieService.addHttpOnlyCookie("jwt", jwt,7 * 24 * 60 * 60, response);
+        cookieService.addHttpOnlyCookie("jwt", jwt, jwtUtil.getExpirationSeconds(), response);
         User user = userService.findByUserName(username);
         return user.getRole().getName().toString();
     }
