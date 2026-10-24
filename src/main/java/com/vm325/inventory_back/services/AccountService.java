@@ -13,4 +13,6 @@ public interface AccountService {
     UserResponseDto confirmEnableTwoFactor(String code);
 
     UserResponseDto disableTwoFactor(String currentPassword);
+
+    void changePassword(String currentPassword, String newPassword);
 }
