@@ -47,6 +47,14 @@ public class User {
     @Column(nullable = false)
     private boolean active = true;
 
+    /** Correo para códigos 2FA y recuperación de contraseña (opcional, único sin distinguir mayúsculas). */
+    @Column(name = "email", length = 254)
+    private String email;
+
+    /** Si es true, el login exige un código enviado a {@link #email} (requiere email). */
+    @Column(name = "two_factor_enabled", nullable = false)
+    private boolean twoFactorEnabled = false;
+
     public User(String userName, String password, Role role) {
         this.userName = userName;
         this.password = password;
