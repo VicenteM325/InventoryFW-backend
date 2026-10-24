@@ -2,14 +2,15 @@
 FROM eclipse-temurin:25-jdk-alpine AS build
 WORKDIR /app
 
-# Permisos de ejecución al wrapper de Maven
+# Primero solo el wrapper de Maven y el pom: la capa con las dependencias
+# descargadas se reutiliza entre builds mientras pom.xml no cambie.
 COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
-COPY src src
+RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
 
-RUN chmod +x mvnw
-RUN ./mvnw clean package -DskipTests
+COPY src src
+RUN ./mvnw -B clean package -DskipTests
 
 # Ejecución ligera con Temurin JRE 25
 FROM eclipse-temurin:25-jre-alpine
@@ -25,4 +26,15 @@ EXPOSE 8080
 # hora real de Guatemala, donde opera Multiservicios Wilson - visible por
 # ejemplo en que "Ventas de hoy" del dashboard no contaría ventas hechas
 # en la tarde/noche local.
-ENTRYPOINT ["java", "-Duser.timezone=America/Guatemala", "-jar", "app.jar"]
+#
+# Memoria (Railway cobra por la RAM realmente usada):
+# - Xmx512m fijo, no un porcentaje del contenedor, para que el consumo no
+#   dependa del límite configurado en Railway (sin límite, la JVM vería la
+#   memoria del host). En pruebas con 1 vCPU aguanta dos fotocopias de DPI
+#   simultáneas a partir de fotos originales de 12 MP, o tres con fotos de
+#   2560 px, con ~720 MiB de RSS como máximo; con 384m se queda sin heap.
+# - SerialGC: con pocos núcleos procesa las imágenes más rápido que G1, y
+#   así no depende de cuántas CPUs vea la JVM en el host.
+# - ExitOnOutOfMemoryError: si aun así se agota el heap, el proceso termina
+#   y Railway lo reinicia, en vez de quedar vivo pero sin poder responder.
+ENTRYPOINT ["java", "-XX:+UseSerialGC", "-Xmx512m", "-XX:+ExitOnOutOfMemoryError", "-Duser.timezone=America/Guatemala", "-jar", "app.jar"]
