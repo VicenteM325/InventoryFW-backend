@@ -229,7 +229,7 @@ public class PdfReportWriter implements ReportWriter {
             double max = niceMax(maxValue.doubleValue());
 
             // Rejilla y eje Y
-            int ticks = 4;
+            int ticks = tickCount(max, chart.money());
             for (int t = 0; t <= ticks; t++) {
                 float ty = plotBottom + plotH * t / ticks;
                 cs.setStrokingColor(t == 0 ? MUTED : BORDER);
@@ -262,6 +262,17 @@ public class PdfReportWriter implements ReportWriter {
                 }
             }
             y = plotBottom - 24;
+        }
+
+        /** Cantidad de divisiones del eje: en conteos enteros cada división debe ser un entero (no 2.5 productos). */
+        static int tickCount(double max, boolean money) {
+            for (int t : new int[]{4, 5, 3, 2}) {
+                double step = max / t;
+                if (money || Math.abs(step - Math.rint(step)) < 1e-9) {
+                    return t;
+                }
+            }
+            return 1;
         }
 
         /** Máximo "redondo" del eje (1, 2, 2.5, 5, 10 x 10^n) que contiene el valor. */
