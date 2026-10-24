@@ -1,8 +1,12 @@
 package com.vm325.inventory_back.controllers;
 
+import com.vm325.inventory_back.reports.InventoryAnalyticsService;
 import com.vm325.inventory_back.reports.InventoryReportService;
 import com.vm325.inventory_back.reports.ReportFormat;
+import com.vm325.inventory_back.reports.SalesAnalyticsService;
 import com.vm325.inventory_back.reports.SalesReportService;
+import com.vm325.inventory_back.reports.dto.InventorySummaryDto;
+import com.vm325.inventory_back.reports.dto.SalesSummaryDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -31,6 +35,23 @@ public class ReportController {
 
     private final SalesReportService salesReportService;
     private final InventoryReportService inventoryReportService;
+    private final SalesAnalyticsService salesAnalyticsService;
+    private final InventoryAnalyticsService inventoryAnalyticsService;
+
+    /** Datos para la vista en pantalla. Por defecto, los últimos 30 días. */
+    @GetMapping("/sales/summary")
+    public ResponseEntity<SalesSummaryDto> salesSummary(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        LocalDate effectiveTo = (to != null) ? to : LocalDate.now();
+        LocalDate effectiveFrom = (from != null) ? from : effectiveTo.minusDays(29);
+        return ResponseEntity.ok(salesAnalyticsService.summarize(effectiveFrom, effectiveTo));
+    }
+
+    @GetMapping("/inventory/summary")
+    public ResponseEntity<InventorySummaryDto> inventorySummary() {
+        return ResponseEntity.ok(inventoryAnalyticsService.summarize());
+    }
 
     @GetMapping("/sales")
     public ResponseEntity<byte[]> salesReport(
