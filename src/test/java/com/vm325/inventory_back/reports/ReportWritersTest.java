@@ -202,4 +202,20 @@ class ReportWritersTest {
             Files.write(Path.of(dir, name), bytes);
         }
     }
+
+    @Test
+    void countChartAxisUsesWholeNumberSteps() throws IOException {
+        // Sin esto, 8 productos daban un eje 0 / 2.5 / 5 / 7.5 / 10: no existen 2.5 productos.
+        ReportChart chart = new ReportChart("Productos por estado", List.of("A", "B", "C"),
+                List.of(BigDecimal.valueOf(8), BigDecimal.ONE, BigDecimal.ONE), "Productos", false);
+        ReportSection section = new ReportSection("Estado", List.of(ReportColumn.text("Producto", 1)),
+                List.of(), List.of(), chart, false);
+        ReportDocument doc = new ReportDocument("T", null, "admin", LocalDateTime.now(), List.of(), List.of(section));
+
+        String content = text(pdf.write(doc));
+
+        assertFalse(content.contains("2.5"), content);
+        assertFalse(content.contains("7.5"), content);
+        assertTrue(content.contains("10"));
+    }
 }
