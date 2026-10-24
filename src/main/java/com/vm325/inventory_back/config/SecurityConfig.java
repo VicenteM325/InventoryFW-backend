@@ -27,7 +27,9 @@ import java.util.List;
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
-    @Value("${cors.allowed-origins}")
+    // Orígenes de desarrollo local/Docker y, en producción, el sitio de
+    // Netlify (ver app.cors.allowed-origins en application.properties).
+    @Value("${app.cors.allowed-origins}")
     private List<String> allowedOrigins;
 
     @Bean
@@ -51,6 +53,8 @@ public class SecurityConfig {
                         ).permitAll()
                         // /auth/check-auth y /auth/user/details exigen sesión válida
                         // (antes /auth/** público hacía que check-auth respondiera 200 sin sesión).
+                        // Healthcheck que Railway consulta en cada deploy
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtEntryPoint()))
@@ -78,11 +82,13 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Orígenes permitidos configurables (CORS_ALLOWED_ORIGINS, separados por coma).
-        configuration.setAllowedOrigins(allowedOrigins);
+        // Patrones en vez de orígenes exactos para admitir comodines (p.ej.
+        // https://*.netlify.app), compatibles con allowCredentials(true).
+        configuration.setAllowedOriginPatterns(allowedOrigins);
 
-        // PATCH es necesario para activar/desactivar usuarios y productos,
-        // marcar notificaciones como leídas y atender alertas de stock.
+        // PATCH lo usan marcar notificación leída, atender alerta y
+        // activar/desactivar productos y usuarios: sin él, Spring rechaza
+        // esas peticiones con 403 "Invalid CORS request".
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept"));
         configuration.setAllowCredentials(true);

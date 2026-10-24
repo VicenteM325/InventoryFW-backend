@@ -11,8 +11,10 @@ import java.awt.image.BufferedImage;
 public interface ImageCropService {
 
     /**
-     * Decodifica una imagen cruda, corrige su orientación EXIF, aplica el
-     * giro manual indicado por {@code rotationOverride} (0/90/180/270,
+     * Decodifica una imagen cruda (reduciéndola si su lado mayor supera
+     * {@code ImageCropServiceImpl.MAX_WORKING_DIMENSION_PX}), corrige su
+     * orientación EXIF, aplica el giro manual indicado por
+     * {@code rotationOverride} (0/90/180/270,
      * antes de cualquier detección — para cuando la geometría del recorte
      * automático deja la tarjeta con el lado correcto pero la orientación
      * de lectura girada, algo que la sola geometría no puede resolver por
@@ -37,9 +39,10 @@ public interface ImageCropService {
                               DetectedCorners manualCorners);
 
     /**
-     * Decodifica la imagen, corrige EXIF y aplica la rotación manual (igual
-     * que {@link #cropAndFit}), pero se detiene ahí: devuelve esa imagen
-     * normalizada junto con las esquinas detectadas automáticamente, sin
+     * Decodifica la imagen (con el mismo límite de resolución), corrige EXIF
+     * y aplica la rotación manual (igual que {@link #cropAndFit}), pero se
+     * detiene ahí: devuelve esa imagen normalizada junto con las esquinas
+     * detectadas automáticamente, sin
      * recortar ni escalar todavía — para que el llamador pueda mostrarle al
      * usuario dónde detectó el borde antes de comprometerse a generar el
      * documento final.
