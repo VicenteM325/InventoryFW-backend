@@ -1,7 +1,10 @@
 package com.vm325.inventory_back.controllers;
 
 import com.vm325.inventory_back.dtos.ApiMessage;
+import com.vm325.inventory_back.dtos.LoginResponseDto;
 import com.vm325.inventory_back.dtos.LoginUserDto;
+import com.vm325.inventory_back.dtos.TwoFactorResendDto;
+import com.vm325.inventory_back.dtos.TwoFactorVerifyDto;
 import com.vm325.inventory_back.entities.User;
 import com.vm325.inventory_back.services.AuthService;
 import com.vm325.inventory_back.services.UserService;
@@ -29,7 +32,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiMessage> login(@Valid @RequestBody LoginUserDto loginUserDto, BindingResult bindingResult, HttpServletResponse response){
+    public ResponseEntity<?> login(@Valid @RequestBody LoginUserDto loginUserDto, BindingResult bindingResult, HttpServletResponse response){
         if (bindingResult.hasErrors()){
             String message = bindingResult.getFieldError() != null
                     ? bindingResult.getFieldError().getDefaultMessage()
@@ -37,8 +40,8 @@ public class AuthController {
             return ResponseEntity.badRequest().body(new ApiMessage(message));
         }
         try {
-            String roleName = authService.authenticate(loginUserDto.getUserName(), loginUserDto.getPassword(), response);
-            return ResponseEntity.ok(new ApiMessage(roleName));
+            LoginResponseDto result = authService.login(loginUserDto.getUserName(), loginUserDto.getPassword(), response);
+            return ResponseEntity.ok(result);
         } catch (AuthenticationException e) {
             // Credenciales erróneas, cuenta desactivada, etc.: mismo mensaje genérico
             // para no revelar si el usuario existe o su estado.
@@ -47,6 +50,17 @@ public class AuthController {
         }
     }
 
+
+    @PostMapping("/2fa/verify")
+    public ResponseEntity<LoginResponseDto> verifyTwoFactor(@Valid @RequestBody TwoFactorVerifyDto dto, HttpServletResponse response) {
+        return ResponseEntity.ok(authService.verifyTwoFactor(dto.getChallengeToken(), dto.getCode(), response));
+    }
+
+    @PostMapping("/2fa/resend")
+    public ResponseEntity<ApiMessage> resendTwoFactor(@Valid @RequestBody TwoFactorResendDto dto) {
+        authService.resendTwoFactor(dto.getChallengeToken());
+        return ResponseEntity.ok(new ApiMessage("Se envió un nuevo código a su correo"));
+    }
 
     @GetMapping("/check-auth")
     public ResponseEntity<String> checkAuth(){

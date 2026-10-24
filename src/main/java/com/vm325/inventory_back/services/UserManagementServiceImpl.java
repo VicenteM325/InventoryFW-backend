@@ -118,14 +118,6 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     private UserResponseDto toDto(User user) {
-        return UserResponseDto.builder()
-                .userId(user.getUserId())
-                .name(user.getName())
-                .userName(user.getUserName())
-                .email(user.getEmail())
-                .twoFactorEnabled(user.isTwoFactorEnabled())
-                .roleName(user.getRole().getName().toString())
-                .active(user.isActive())
-                .build();
+        return UserResponseDto.from(user);
     }
 }
