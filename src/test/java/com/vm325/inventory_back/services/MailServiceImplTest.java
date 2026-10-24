@@ -60,10 +60,10 @@ class MailServiceImplTest {
     @Test
     void passwordResetEmailContainsLink() throws Exception {
         mailService.sendPasswordReset("user@test.com", "Ana",
-                "http://localhost:5173/auth/reset-password?token=abc", 30);
+                "http://localhost:5173/auth/reset?token=abc", 30);
 
         String content = (String) sent().getContent();
-        assertTrue(content.contains("reset-password?token=abc"));
+        assertTrue(content.contains("reset?token=abc"));
         assertTrue(content.contains("30 minutos"));
     }
 

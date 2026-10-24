@@ -74,7 +74,7 @@ class PasswordRecoveryServiceImplTest {
 
         ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
         verify(mail).sendPasswordReset(eq("ana@test.com"), eq("Ana"), link.capture(), eq(30));
-        assertEquals("http://localhost:5173/auth/reset-password?token=tok123", link.getValue());
+        assertEquals("http://localhost:5173/auth/reset?token=tok123", link.getValue());
     }
 
     @Test
