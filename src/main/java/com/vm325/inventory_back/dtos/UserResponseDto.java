@@ -13,6 +13,8 @@ public class UserResponseDto {
     private UUID userId;
     private String name;
     private String userName;
+    private String email;
+    private boolean twoFactorEnabled;
     private String roleName;
     private boolean active;
 }
