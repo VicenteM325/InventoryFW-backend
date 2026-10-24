@@ -42,7 +42,15 @@ public class SecurityConfig {
                         // Permite todas las peticiones OPTIONS globales para evitar 403 en Preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Endpoints públicos de autenticación
-                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers(
+                                "/auth/login",
+                                "/auth/logout",
+                                "/auth/2fa/**",
+                                "/auth/forgot-password",
+                                "/auth/reset-password"
+                        ).permitAll()
+                        // /auth/check-auth y /auth/user/details exigen sesión válida
+                        // (antes /auth/** público hacía que check-auth respondiera 200 sin sesión).
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtEntryPoint()))

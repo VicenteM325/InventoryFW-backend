@@ -8,8 +8,8 @@ import com.vm325.inventory_back.services.UserService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,13 +31,19 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiMessage> login(@Valid @RequestBody LoginUserDto loginUserDto, BindingResult bindingResult, HttpServletResponse response){
         if (bindingResult.hasErrors()){
-            return ResponseEntity.badRequest().body(new ApiMessage("Revise sus credenciales"));
+            String message = bindingResult.getFieldError() != null
+                    ? bindingResult.getFieldError().getDefaultMessage()
+                    : "Revise sus credenciales";
+            return ResponseEntity.badRequest().body(new ApiMessage(message));
         }
         try {
             String roleName = authService.authenticate(loginUserDto.getUserName(), loginUserDto.getPassword(), response);
             return ResponseEntity.ok(new ApiMessage(roleName));
-        } catch (Exception e){
-            return ResponseEntity.badRequest().body(new ApiMessage(e.getMessage()));
+        } catch (AuthenticationException e) {
+            // Credenciales erróneas, cuenta desactivada, etc.: mismo mensaje genérico
+            // para no revelar si el usuario existe o su estado.
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiMessage("Usuario o contraseña incorrectos"));
         }
     }
 
