@@ -11,3 +11,26 @@ Fecha: 2026-10-24 · Backend en `integration/2fa` · PostgreSQL 15 real (Docker)
 | Notificaciones | un empleado lista solo las de su rol o generales; marcar una inexistente → 404 |
 
 No se probó contra el navegador real ni contra Mailtrap (ver `mailtrap-test-log.md`).
+
+---
+
+# Reportes: análisis y exportación (2026-10-24)
+
+78 pruebas unitarias del backend pasan (10 del análisis de ventas, 9 de los exportadores y el resto
+previas). Con 103 ventas sembradas en 60 días, `/api/reports/sales/summary` coincidió con SQL
+directo en total (Q 291,376.00), transacciones (69), unidades (248), periodo anterior
+(Q 132,133.00 / 34) y total por empleado (Q 141,067.00).
+
+| Prueba | Resultado |
+|---|---|
+| `GET /api/reports/sales/summary` con rango invertido | 400 |
+| Rango de más de 366 días | 400 |
+| Sin sesión | 401 |
+| `format=DOC` en la exportación | 400 |
+| PDF y XLSX de ventas e inventario | 200, `Content-Type` y nombre de archivo correctos |
+| PDF de 120 ventas | paginado con "Página X de Y"; texto ajustado en varias líneas |
+| XLSX | valores nativos (fechas, moneda), autofiltro, encabezado fijo, fórmula SUM en totales y gráfico; XML bien formado |
+
+Cambio de comportamiento: el reporte de inventario ahora excluye los productos dados de baja.
+No se abrió el XLSX en Excel ni LibreOffice (no disponibles en este equipo): se verificó leyéndolo
+con Apache POI y validando su XML.
