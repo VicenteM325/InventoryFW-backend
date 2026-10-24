@@ -1,85 +1,76 @@
 package com.vm325.inventory_back.reports;
 
-import com.vm325.inventory_back.entities.Product;
-import com.vm325.inventory_back.entities.StockAlert;
-import com.vm325.inventory_back.enums.StockAlertStatus;
-import com.vm325.inventory_back.repositories.ProductRepository;
-import com.vm325.inventory_back.repositories.StockAlertRepository;
-import com.vm325.inventory_back.services.StockStatusCalculator;
+import com.vm325.inventory_back.reports.ReportKpi.Trend;
+import com.vm325.inventory_back.reports.dto.InventorySummaryDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
+
+import static com.vm325.inventory_back.reports.ColumnType.*;
 
 @Service
 @RequiredArgsConstructor
 public class InventoryReportServiceImpl implements InventoryReportService {
 
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-
-    private final ProductRepository productRepository;
-    private final StockAlertRepository stockAlertRepository;
-    private final StockStatusCalculator stockStatusCalculator;
+    private final InventoryAnalyticsService analytics;
     private final ReportWriterFactory reportWriterFactory;
 
     @Override
-    public byte[] generate(ReportFormat format) {
-        ReportTable productTable = buildProductTable();
-        ReportTable alertTable = buildAlertTable();
-
-        return reportWriterFactory.get(format).write(List.of(productTable, alertTable));
+    public byte[] generate(ReportFormat format, String generatedBy) {
+        return reportWriterFactory.get(format).write(buildDocument(analytics.summarize(), generatedBy));
     }
 
-    private ReportTable buildProductTable() {
-        List<Product> products = productRepository.findAll();
+    ReportDocument buildDocument(InventorySummaryDto s, String generatedBy) {
+        LocalDateTime now = LocalDateTime.now();
 
-        List<String> headers = List.of("Producto", "Codigo de barras", "Categoria", "Proveedor", "Stock", "Estado");
-        List<List<String>> rows = products.stream()
-                .map(p -> List.of(
-                        p.getName(),
-                        p.getBarcode(),
-                        p.getCategory() != null ? p.getCategory().toString() : "-",
-                        p.getSupplier() != null ? p.getSupplier().getName() : "-",
-                        String.valueOf(p.getStock()),
-                        stockStatusCalculator.resolve(p.getStock(), p.getMinStock())
-                ))
-                .collect(Collectors.toList());
+        List<ReportKpi> kpis = List.of(
+                ReportKpi.of("Productos activos", ReportFormats.integer(s.totalProducts())),
+                new ReportKpi("Disponibles", ReportFormats.integer(s.available()), share(s.available(), s.totalProducts()), Trend.NEUTRAL),
+                new ReportKpi("Stock bajo", ReportFormats.integer(s.lowStock()), share(s.lowStock(), s.totalProducts()),
+                        s.lowStock() > 0 ? Trend.DOWN : Trend.NEUTRAL),
+                new ReportKpi("Agotados", ReportFormats.integer(s.outOfStock()), share(s.outOfStock(), s.totalProducts()),
+                        s.outOfStock() > 0 ? Trend.DOWN : Trend.NEUTRAL),
+                new ReportKpi("Alertas pendientes", ReportFormats.integer(s.pendingAlerts()),
+                        s.pendingAlerts() > 0 ? "Requieren reposición" : "Todo en orden",
+                        s.pendingAlerts() > 0 ? Trend.DOWN : Trend.UP));
 
-        long disponibles = products.stream().filter(p -> "DISPONIBLE".equals(stockStatusCalculator.resolve(p.getStock(), p.getMinStock()))).count();
-        long stockBajo = products.stream().filter(p -> "STOCK_BAJO".equals(stockStatusCalculator.resolve(p.getStock(), p.getMinStock()))).count();
-        long agotados = products.stream().filter(p -> "AGOTADO".equals(stockStatusCalculator.resolve(p.getStock(), p.getMinStock()))).count();
+        ReportChart chart = new ReportChart("Productos por estado de stock",
+                List.of("Disponibles", "Stock bajo", "Agotados"),
+                List.of(BigDecimal.valueOf(s.available()), BigDecimal.valueOf(s.lowStock()), BigDecimal.valueOf(s.outOfStock())),
+                "Productos", false);
 
-        List<String> footer = List.of(
-                "Total de productos: " + products.size(),
-                "Disponibles: " + disponibles + "  |  Stock bajo: " + stockBajo + "  |  Agotados: " + agotados
-        );
+        ReportSection products = new ReportSection("Estado del stock",
+                List.of(ReportColumn.text("Producto", 4), ReportColumn.text("Código de barras", 2.6f),
+                        ReportColumn.text("Categoría", 2), ReportColumn.text("Proveedor", 3),
+                        ReportColumn.of("Stock", INTEGER, 1.3f), ReportColumn.of("Mínimo", INTEGER, 1.3f),
+                        ReportColumn.of("Precio", MONEY, 1.8f), ReportColumn.of("Estado", STATUS, 2)),
+                s.products().stream().map(p -> List.<Object>of(p.name(), p.barcode(), p.category(), p.supplier(),
+                        p.stock(), p.minStock(), p.price(), p.status())).toList(),
+                List.of(), chart, false);
 
-        return new ReportTable("Reporte de Inventario", headers, rows, footer);
+        ReportSection alerts = new ReportSection("Alertas de reposición",
+                List.of(ReportColumn.text("Producto", 4), ReportColumn.of("Stock al generarse", INTEGER, 2),
+                        ReportColumn.of("Estado", STATUS, 2), ReportColumn.of("Generada", DATETIME, 2.6f),
+                        ReportColumn.of("Atendida", DATETIME, 2.6f)),
+                // Arrays.asList admite null: una alerta sin atender no tiene fecha de atención.
+                s.alerts().stream().map(a -> Arrays.<Object>asList(a.product(), a.stockAtAlert(), a.status(),
+                        a.createdAt(), a.attendedAt())).toList(),
+                List.of("Pendientes: " + s.pendingAlerts() + "   |   Atendidas: " + (s.alerts().size() - s.pendingAlerts())),
+                null, false);
+
+        return new ReportDocument("Reporte de Inventario",
+                "Estado al " + now.format(ReportFormats.DATE_TIME) + "   |   Solo productos activos",
+                generatedBy, now, kpis, List.of(products, alerts));
     }
 
-    private ReportTable buildAlertTable() {
-        List<StockAlert> alerts = stockAlertRepository.findAll();
-        alerts.sort(Comparator.comparing(StockAlert::getCreatedAt).reversed());
-
-        List<String> headers = List.of("Producto", "Stock al generarse", "Estado", "Generada", "Atendida");
-        List<List<String>> rows = alerts.stream()
-                .map(a -> List.of(
-                        a.getProduct().getName(),
-                        String.valueOf(a.getStockAtAlert()),
-                        a.getStatus().toString(),
-                        a.getCreatedAt().format(DATE_FMT),
-                        a.getAttendedAt() == null ? "-" : a.getAttendedAt().format(DATE_FMT)
-                ))
-                .collect(Collectors.toList());
-
-        long pendientes = alerts.stream().filter(a -> a.getStatus() == StockAlertStatus.PENDIENTE).count();
-        List<String> footer = List.of(
-                "Alertas pendientes: " + pendientes + "  |  Atendidas: " + (alerts.size() - pendientes)
-        );
-
-        return new ReportTable("Alertas de Reposicion de Stock", headers, rows, footer);
+    private String share(int part, int total) {
+        if (total == 0) {
+            return "0% del inventario";
+        }
+        return Math.round(part * 100.0 / total) + "% del inventario";
     }
 }
