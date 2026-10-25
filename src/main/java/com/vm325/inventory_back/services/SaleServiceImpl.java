@@ -114,14 +114,26 @@ public class SaleServiceImpl implements SaleService {
                     StockAlert savedAlert = stockAlertRepository.save(alert);
                     alertedProductIds.add(product.getProductId());
 
-                    notificationService.notify(
-                            NotificationType.STOCK_BAJO,
-                            "Stock bajo: " + product.getName() + " quedó con " + product.getStock() + " unidades",
-                            "StockAlert",
-                            savedAlert.getStockAlertId(),
-                            null
-                    );
+                    if (product.getStock() > 0) {
+                        notificationService.notify(
+                                NotificationType.STOCK_BAJO,
+                                "Stock bajo: " + product.getName() + " quedó con " + product.getStock() + " unidades",
+                                "StockAlert",
+                                savedAlert.getStockAlertId(),
+                                null
+                        );
+                    }
                 }
+            }
+
+            if (product.getStock() == 0) {
+                notificationService.notify(
+                        NotificationType.AGOTADO,
+                        "Producto agotado: " + product.getName() + " se quedó sin unidades",
+                        "Product",
+                        product.getProductId(),
+                        null
+                );
             }
 
             // Crear DTO de respuesta con el stock actualizado

@@ -58,6 +58,14 @@ public class NotificationServiceImpl implements NotificationService {
         return toDto(notificationRepository.save(notification));
     }
 
+    @Override
+    public int markAllAsRead(RoleList viewerRole) {
+        List<Notification> unread = notificationRepository.findVisibleToByRead(viewerRole, false);
+        unread.forEach(n -> n.setRead(true));
+        notificationRepository.saveAll(unread);
+        return unread.size();
+    }
+
     private NotificationResponseDto toDto(Notification notification) {
         return NotificationResponseDto.builder()
                 .notificationId(notification.getNotificationId())

@@ -1,6 +1,5 @@
 package com.vm325.inventory_back.reports;
 
-import com.vm325.inventory_back.reports.ReportKpi.Trend;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -31,14 +30,10 @@ class ReportWritersTest {
 
     static ReportDocument sampleDocument(int saleRows) {
         List<List<Object>> days = new ArrayList<>();
-        List<String> labels = new ArrayList<>();
-        List<BigDecimal> values = new ArrayList<>();
         for (int i = 0; i < 30; i++) {
             LocalDate day = LocalDate.of(2026, 3, 1).plusDays(i);
             BigDecimal total = i % 7 == 0 ? BigDecimal.ZERO : BigDecimal.valueOf(300 + (i * 137) % 900);
             days.add(List.of(day, i % 7 == 0 ? 0 : 2 + i % 4, total));
-            labels.add(String.format("%02d/03", i + 1));
-            values.add(total);
         }
 
         List<List<Object>> sales = new ArrayList<>();
@@ -49,34 +44,33 @@ class ReportWritersTest {
                     4, BigDecimal.valueOf(1234.5 + i)));
         }
 
-        ReportChart chart = new ReportChart("Ventas por día (Q)", labels, values, "Total vendido", true);
         List<ReportSection> sections = List.of(
                 new ReportSection("Ventas por día",
                         List.of(ReportColumn.of("Fecha", DATE, 3), ReportColumn.of("Transacciones", INTEGER, 2),
                                 ReportColumn.of("Total", MONEY, 2)),
-                        days, List.of("Mejor día: 15/03"), chart, true),
+                        days, List.of("Mejor día: 15/03"), true),
                 new ReportSection("Productos más vendidos",
                         List.of(ReportColumn.text("Producto", 6), ReportColumn.of("Unidades", INTEGER, 2),
                                 ReportColumn.of("Ingresos", MONEY, 2)),
-                        List.of(), List.of(), null, false),
+                        List.of(), List.of(), false),
                 new ReportSection("Alertas",
                         List.of(ReportColumn.text("Producto", 4), ReportColumn.of("Estado", STATUS, 2),
                                 ReportColumn.of("Atendida", DATETIME, 2)),
                         List.of(Arrays.<Object>asList("Cámara € 😀", "PENDIENTE", null),
                                 Arrays.<Object>asList("Cable", "ATENDIDA", LocalDateTime.of(2026, 3, 4, 10, 30))),
-                        List.of(), null, false),
+                        List.of(), false),
                 new ReportSection("Detalle de ventas",
                         List.of(ReportColumn.of("Fecha", DATETIME, 2.4f), ReportColumn.text("Empleado", 2),
                                 ReportColumn.text("Cliente", 2.6f), ReportColumn.text("Productos", 6),
                                 ReportColumn.of("Unidades", INTEGER, 1.4f), ReportColumn.of("Total", MONEY, 2)),
-                        sales, List.of(), null, true));
+                        sales, List.of(), true));
 
         return new ReportDocument("Reporte de Ventas", "Periodo: 01/03/2026 al 30/03/2026", "admin",
                 LocalDateTime.of(2026, 3, 31, 8, 15),
-                List.of(new ReportKpi("Total vendido", "Q 18,450.00", "+12.5% vs periodo anterior", Trend.UP),
-                        new ReportKpi("Transacciones", "72", "-3.1% vs periodo anterior", Trend.DOWN),
+                List.of(ReportKpi.of("Total vendido", "Q 18,450.00"),
+                        ReportKpi.of("Transacciones", "72"),
                         ReportKpi.of("Ticket promedio", "Q 256.25"),
-                        new ReportKpi("Unidades vendidas", "140", "Sin datos del periodo anterior", Trend.NEUTRAL)),
+                        ReportKpi.of("Unidades vendidas", "140")),
                 sections);
     }
 
@@ -108,7 +102,7 @@ class ReportWritersTest {
         assertTrue(content.contains("Periodo: 01/03/2026 al 30/03/2026"));
         assertTrue(content.contains("Por: admin"));
         assertTrue(content.contains("Q 18,450.00"));
-        assertTrue(content.contains("+12.5% vs periodo anterior"));
+        assertFalse(content.contains("vs periodo anterior"));
         assertTrue(content.contains("Productos más vendidos"));
         assertTrue(content.contains("Total"));
         assertTrue(content.contains("Pendiente"), "los estados se muestran legibles");
@@ -131,15 +125,15 @@ class ReportWritersTest {
     }
 
     @Test
-    void xlsxHasSummaryAndOneSheetPerSection() throws IOException {
+    void xlsxHasSummaryAndOneSheetPerSectionWithoutCharts() throws IOException {
         try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(xlsx.write(sampleDocument(10))))) {
             assertEquals(List.of("Resumen", "Ventas por día", "Productos más vendidos", "Alertas", "Detalle de ventas"),
                     names(wb));
             XSSFSheet summary = wb.getSheet("Resumen");
             assertEquals("Reporte de Ventas", summary.getRow(0).getCell(0).getStringCellValue());
-            assertEquals("TOTAL VENDIDO", summary.getRow(3).getCell(0).getStringCellValue());
-            assertEquals("Q 18,450.00", summary.getRow(4).getCell(0).getStringCellValue());
-            assertEquals(1, summary.getDrawingPatriarch().getCharts().size());
+            assertEquals("Total vendido", summary.getRow(4).getCell(0).getStringCellValue());
+            assertEquals("Q 18,450.00", summary.getRow(4).getCell(1).getStringCellValue());
+            assertNull(summary.getDrawingPatriarch(), "sin gráficos");
         }
     }
 
@@ -186,7 +180,7 @@ class ReportWritersTest {
 
     @Test
     void sheetNamesAreUniqueAndValid() throws IOException {
-        ReportSection s = new ReportSection("Detalle: ventas/día [1]?", List.of(ReportColumn.text("A", 1)), List.of(), List.of(), null, false);
+        ReportSection s = new ReportSection("Detalle: ventas/día [1]?", List.of(ReportColumn.text("A", 1)), List.of(), List.of(), false);
         ReportDocument doc = new ReportDocument("T", null, null, LocalDateTime.now(), List.of(), List.of(s, s));
 
         try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(xlsx.write(doc)))) {
@@ -201,21 +195,5 @@ class ReportWritersTest {
         if (dir != null) {
             Files.write(Path.of(dir, name), bytes);
         }
-    }
-
-    @Test
-    void countChartAxisUsesWholeNumberSteps() throws IOException {
-        // Sin esto, 8 productos daban un eje 0 / 2.5 / 5 / 7.5 / 10: no existen 2.5 productos.
-        ReportChart chart = new ReportChart("Productos por estado", List.of("A", "B", "C"),
-                List.of(BigDecimal.valueOf(8), BigDecimal.ONE, BigDecimal.ONE), "Productos", false);
-        ReportSection section = new ReportSection("Estado", List.of(ReportColumn.text("Producto", 1)),
-                List.of(), List.of(), chart, false);
-        ReportDocument doc = new ReportDocument("T", null, "admin", LocalDateTime.now(), List.of(), List.of(section));
-
-        String content = text(pdf.write(doc));
-
-        assertFalse(content.contains("2.5"), content);
-        assertFalse(content.contains("7.5"), content);
-        assertTrue(content.contains("10"));
     }
 }

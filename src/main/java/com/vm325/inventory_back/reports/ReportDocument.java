@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Reporte completo, agnóstico de formato: encabezado, indicadores y secciones.
+ * Reporte completo, agnóstico de formato: encabezado, resumen y secciones.
  * PdfReportWriter y XlsxReportWriter consumen exactamente esta estructura, así que
  * agregar un reporte nuevo no requiere tocar ninguno de los dos.
  */

@@ -33,12 +33,4 @@ public final class ReportTheme {
             default -> INK;
         };
     }
-
-    public static Color trendColor(ReportKpi.Trend trend) {
-        return switch (trend) {
-            case UP -> GREEN;
-            case DOWN -> RED;
-            default -> MUTED;
-        };
-    }
 }
