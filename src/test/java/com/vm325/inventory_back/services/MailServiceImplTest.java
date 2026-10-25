@@ -152,12 +152,14 @@ class MailServiceImplTest {
         MailService.RenderedMail mail = mailService.previewSupplierOrder(order());
 
         assertEquals("ventas@tigo.com", mail.to());
-        assertEquals("Pedido de reposición: Funda <b>x</b> (20 unidades)", mail.subject());
+        assertEquals("Nuevo Pedido: Funda <b>x</b> (20 unidades)", mail.subject());
         assertTrue(mail.html().contains("20 unidades"));
         assertTrue(mail.html().contains("750100"));
         assertTrue(mail.html().contains("Funda &lt;b&gt;x&lt;/b&gt;"), "el producto se escapa");
         assertTrue(mail.html().contains("Tigo &lt;S.A.&gt;"), "el proveedor se escapa");
         assertTrue(mail.html().contains("Tel. 5555-1234"));
+        assertTrue(mail.html().contains("<h2 style=\"margin:0 0 16px;color:#1f2937;\">Nuevo Pedido</h2>"), "título del correo");
+        assertFalse(mail.html().contains("Existencia actual"), "no se muestra el stock del negocio al proveedor");
         assertFalse(mail.html().contains("{{"), "no deben quedar marcadores sin reemplazar");
         assertFalse(mail.html().contains("ignora este mensaje"));
         verify(sender, never()).send(any(MimeMessage.class));
@@ -200,7 +202,7 @@ class MailServiceImplTest {
         mailService.sendSupplierOrder(order());
 
         verify(brevo).send(eq("no-reply@test.local"), eq("Multiservicios Wilson"), eq("ventas@tigo.com"),
-                contains("Pedido de reposición"), contains("20 unidades"), eq("dueno@gmail.com"));
+                contains("Nuevo Pedido"), contains("20 unidades"), eq("dueno@gmail.com"));
         verify(sender, never()).send(any(MimeMessage.class));
     }
 }

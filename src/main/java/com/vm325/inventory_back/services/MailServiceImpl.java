@@ -111,12 +111,10 @@ public class MailServiceImpl implements MailService {
                 "product", order.productName(),
                 "barcode", order.barcode() == null || order.barcode().isBlank() ? "-" : order.barcode(),
                 "quantity", String.valueOf(order.quantity()),
-                "stock", String.valueOf(order.currentStock()),
-                "minStock", String.valueOf(order.minStock()),
                 "business", businessName,
                 "phoneLine", phoneLine), "phoneLine");
-        String subject = "Pedido de reposición: " + order.productName() + " (" + order.quantity() + " unidades)";
-        String html = renderLayout("Pedido de reposición", order.supplierName(), body,
+        String subject = "Nuevo Pedido: " + order.productName() + " (" + order.quantity() + " unidades)";
+        String html = renderLayout("Nuevo Pedido", order.supplierName(), body,
                 "Pedido enviado desde el sistema de inventario de " + businessName + ".");
         return new RenderedMail(order.to(), subject, html);
     }

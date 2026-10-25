@@ -34,6 +34,13 @@ public class StockAlertServiceImpl implements StockAlertService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Alerta no encontrada con id " + id));
 
+        // Con proveedor asociado, la alerta se atiende cuando ya se le envió el pedido.
+        // Sin proveedor no hay a quién pedirle, así que se puede atender directamente.
+        if (alert.getProduct().getSupplier() != null && alert.getOrderedAt() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Primero envía el pedido al proveedor para poder marcar la alerta como atendida");
+        }
+
         alert.setStatus(StockAlertStatus.ATENDIDA);
         alert.setAttendedAt(LocalDateTime.now());
 
