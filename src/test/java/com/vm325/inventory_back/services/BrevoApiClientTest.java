@@ -59,6 +59,15 @@ class BrevoApiClientTest {
     }
 
     @Test
+    void includesReplyToOnlyWhenGiven() throws IOException {
+        client.send("yo@gmail.com", "X", "user@test.com", "A", "<p/>", "dueno@gmail.com");
+        assertTrue(body.get().contains("\"replyTo\":{\"email\":\"dueno@gmail.com\"}"), body.get());
+
+        client.send("yo@gmail.com", "X", "user@test.com", "A", "<p/>");
+        assertFalse(body.get().contains("replyTo"));
+    }
+
+    @Test
     void rejectedRequestSurfacesBrevoReason() {
         status = 400;
         reply = "{\"message\":\"Sender is not valid\"}";

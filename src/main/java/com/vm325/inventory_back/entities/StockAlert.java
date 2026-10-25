@@ -42,6 +42,13 @@ public class StockAlert {
     @Column(name = "attended_at")
     private LocalDateTime attendedAt;
 
+    /** Último pedido de reposición enviado al proveedor desde esta alerta. */
+    @Column(name = "ordered_quantity")
+    private Integer orderedQuantity;
+
+    @Column(name = "ordered_at")
+    private LocalDateTime orderedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

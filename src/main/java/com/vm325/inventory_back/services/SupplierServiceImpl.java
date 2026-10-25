@@ -25,7 +25,8 @@ public class SupplierServiceImpl implements SupplierService {
         Supplier supplier = Supplier.builder()
                 .name(dto.getName())
                 .contactName(dto.getContactName())
-                .phone(dto.getPhone())
+                .email(dto.getEmail().trim())
+                .phone(dto.getPhone().trim())
                 .build();
 
         return toResponseDto(supplierRepository.save(supplier));
@@ -36,7 +37,8 @@ public class SupplierServiceImpl implements SupplierService {
         Supplier supplier = getSupplierOrThrow(id);
         supplier.setName(dto.getName());
         supplier.setContactName(dto.getContactName());
-        supplier.setPhone(dto.getPhone());
+        supplier.setEmail(dto.getEmail().trim());
+        supplier.setPhone(dto.getPhone().trim());
 
         return toResponseDto(supplierRepository.save(supplier));
     }
@@ -75,6 +77,7 @@ public class SupplierServiceImpl implements SupplierService {
                 .supplierId(supplier.getSupplierId())
                 .name(supplier.getName())
                 .contactName(supplier.getContactName())
+                .email(supplier.getEmail())
                 .phone(supplier.getPhone())
                 .build();
     }

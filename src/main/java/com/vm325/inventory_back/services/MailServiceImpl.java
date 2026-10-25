@@ -37,6 +37,15 @@ public class MailServiceImpl implements MailService {
     @Value("${mail.from-name:Multiservicios Wilson}")
     private String fromName;
 
+    @Value("${mail.reply-to:}")
+    private String replyTo;
+
+    @Value("${business.name:Multiservicios Wilson}")
+    private String businessName;
+
+    @Value("${business.phone:}")
+    private String businessPhone;
+
     // Opcional: con BREVO_API_KEY el envío va por HTTPS en lugar de SMTP.
     @Autowired(required = false)
     private BrevoApiClient brevo;
@@ -94,15 +103,51 @@ public class MailServiceImpl implements MailService {
                 "Gracias por tu compra. " + BRAND);
     }
 
+    @Override
+    public RenderedMail previewSupplierOrder(SupplierOrder order) {
+        String phoneLine = businessPhone == null || businessPhone.isBlank()
+                ? "" : "<br>Tel. " + HtmlUtils.htmlEscape(businessPhone);
+        String body = render("supplier-order", Map.of(
+                "product", order.productName(),
+                "barcode", order.barcode() == null || order.barcode().isBlank() ? "-" : order.barcode(),
+                "quantity", String.valueOf(order.quantity()),
+                "stock", String.valueOf(order.currentStock()),
+                "minStock", String.valueOf(order.minStock()),
+                "business", businessName,
+                "phoneLine", phoneLine), "phoneLine");
+        String subject = "Pedido de reposición: " + order.productName() + " (" + order.quantity() + " unidades)";
+        String html = renderLayout("Pedido de reposición", order.supplierName(), body,
+                "Pedido enviado desde el sistema de inventario de " + businessName + ".");
+        return new RenderedMail(order.to(), subject, html);
+    }
+
+    @Override
+    public void sendSupplierOrder(SupplierOrder order) {
+        RenderedMail mail = previewSupplierOrder(order);
+        deliver(mail.to(), mail.subject(), mail.html(), replyTo == null || replyTo.isBlank() ? from : replyTo);
+    }
+
     private void send(String to, String subject, String title, String name, String body) {
         send(to, subject, title, name, body, "Si no solicitaste esto, ignora este mensaje. " + BRAND);
     }
 
     private void send(String to, String subject, String title, String name, String body, String footer) {
-        String html = render("layout", Map.of("title", title, "name", name, "body", body, "footer", footer), "body");
+        deliver(to, subject, renderLayout(title, name, body, footer), null);
+    }
+
+    private String renderLayout(String title, String name, String body, String footer) {
+        return render("layout", Map.of("title", title, "name", name, "body", body, "footer", footer), "body");
+    }
+
+    /** Entrega por la API de Brevo si está activa, o por SMTP; replyTo es opcional. */
+    private void deliver(String to, String subject, String html, String replyTo) {
         try {
             if (brevo != null && brevo.isEnabled()) {
-                brevo.send(from, fromName, to, subject, html);
+                if (replyTo == null) {
+                    brevo.send(from, fromName, to, subject, html);
+                } else {
+                    brevo.send(from, fromName, to, subject, html, replyTo);
+                }
                 return;
             }
             MimeMessage message = mailSender.createMimeMessage();
@@ -110,6 +155,9 @@ public class MailServiceImpl implements MailService {
             helper.setFrom(from);
             helper.setTo(to);
             helper.setSubject(subject);
+            if (replyTo != null) {
+                helper.setReplyTo(replyTo);
+            }
             helper.setText(html, true);
             mailSender.send(message);
         } catch (MessagingException | MailException | IOException e) {

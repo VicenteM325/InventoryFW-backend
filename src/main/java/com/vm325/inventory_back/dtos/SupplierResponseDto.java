@@ -11,5 +11,6 @@ public class SupplierResponseDto {
     private Long supplierId;
     private String name;
     private String contactName;
+    private String email;
     private String phone;
 }
