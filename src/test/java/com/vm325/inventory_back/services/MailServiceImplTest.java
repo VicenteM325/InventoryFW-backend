@@ -104,4 +104,38 @@ class MailServiceImplTest {
         assertEquals(503, ex.getStatusCode().value());
         assertFalse(String.valueOf(ex.getReason()).contains("401"));
     }
+
+    private static com.vm325.inventory_back.dtos.SaleResponseDto sale() {
+        return com.vm325.inventory_back.dtos.SaleResponseDto.builder()
+                .salesId(42L).employeeUsername("empleado1").customerName("Ana")
+                .date(java.time.LocalDateTime.of(2026, 3, 5, 14, 30))
+                .total(new java.math.BigDecimal("2495.00"))
+                .items(java.util.List.of(
+                        com.vm325.inventory_back.dtos.SaleItemResponseDto.builder()
+                                .productId(1L).productName("<b>Funda</b> & cable").quantity(2)
+                                .unitPrice(new java.math.BigDecimal("45.00")).subtotal(new java.math.BigDecimal("90.00")).build(),
+                        com.vm325.inventory_back.dtos.SaleItemResponseDto.builder()
+                                .productId(2L).productName("Samsung A54").quantity(1)
+                                .unitPrice(new java.math.BigDecimal("2405.00")).subtotal(new java.math.BigDecimal("2405.00")).build()))
+                .build();
+    }
+
+    @Test
+    void receiptEmailListsItemsTotalAndEscapesProductNames() throws Exception {
+        mailService.sendSaleReceipt("cliente@test.com", sale());
+
+        MimeMessage message = sent();
+        assertEquals("cliente@test.com", message.getRecipients(Message.RecipientType.TO)[0].toString());
+        assertEquals("Recibo de tu compra No. 42", message.getSubject());
+        String content = (String) message.getContent();
+        assertTrue(content.contains("Samsung A54"));
+        assertTrue(content.contains("Q 2,495.00"), "total");
+        assertTrue(content.contains("Q 90.00"), "subtotal");
+        assertTrue(content.contains("05/03/2026 14:30"));
+        assertTrue(content.contains("&lt;b&gt;Funda&lt;/b&gt; &amp; cable"), "el nombre del producto se escapa");
+        assertFalse(content.contains("<b>Funda"));
+        assertFalse(content.contains("{{"), "no deben quedar marcadores sin reemplazar");
+        assertTrue(content.contains("Gracias por tu compra"));
+        assertFalse(content.contains("ignora este mensaje"), "el pie de seguridad no aplica a un recibo");
+    }
 }
