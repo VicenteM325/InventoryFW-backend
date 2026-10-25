@@ -76,4 +76,32 @@ class MailServiceImplTest {
         assertEquals(503, ex.getStatusCode().value());
         assertFalse(String.valueOf(ex.getReason()).contains("boom"));
     }
+
+    @Test
+    void usesBrevoApiInsteadOfSmtpWhenEnabled() throws Exception {
+        BrevoApiClient brevo = mock(BrevoApiClient.class);
+        when(brevo.isEnabled()).thenReturn(true);
+        ReflectionTestUtils.setField(mailService, "brevo", brevo);
+        ReflectionTestUtils.setField(mailService, "fromName", "Multiservicios Wilson");
+
+        mailService.sendLoginCode("user@test.com", "Ana", "123456", 10);
+
+        verify(brevo).send(eq("no-reply@test.local"), eq("Multiservicios Wilson"), eq("user@test.com"),
+                eq("Tu código de verificación"), contains("123456"));
+        verify(sender, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void brevoApiFailureBecomesServiceUnavailable() throws Exception {
+        BrevoApiClient brevo = mock(BrevoApiClient.class);
+        when(brevo.isEnabled()).thenReturn(true);
+        doThrow(new java.io.IOException("Brevo respondió 401")).when(brevo).send(any(), any(), any(), any(), any());
+        ReflectionTestUtils.setField(mailService, "brevo", brevo);
+        ReflectionTestUtils.setField(mailService, "fromName", "X");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> mailService.sendLoginCode("user@test.com", "Ana", "123456", 10));
+        assertEquals(503, ex.getStatusCode().value());
+        assertFalse(String.valueOf(ex.getReason()).contains("401"));
+    }
 }

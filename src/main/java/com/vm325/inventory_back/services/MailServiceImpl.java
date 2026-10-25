@@ -30,6 +30,13 @@ public class MailServiceImpl implements MailService {
     @Value("${mail.from}")
     private String from;
 
+    @Value("${mail.from-name:Multiservicios Wilson}")
+    private String fromName;
+
+    // Opcional: con BREVO_API_KEY el envío va por HTTPS en lugar de SMTP.
+    @Autowired(required = false)
+    private BrevoApiClient brevo;
+
     @Autowired
     public MailServiceImpl(JavaMailSender mailSender) {
         this.mailSender = mailSender;
@@ -64,6 +71,10 @@ public class MailServiceImpl implements MailService {
     private void send(String to, String subject, String title, String name, String body) {
         String html = render("layout", Map.of("title", title, "name", name, "body", body), "body");
         try {
+            if (brevo != null && brevo.isEnabled()) {
+                brevo.send(from, fromName, to, subject, html);
+                return;
+            }
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
             helper.setFrom(from);
@@ -71,7 +82,7 @@ public class MailServiceImpl implements MailService {
             helper.setSubject(subject);
             helper.setText(html, true);
             mailSender.send(message);
-        } catch (MessagingException | MailException e) {
+        } catch (MessagingException | MailException | IOException e) {
             log.error("No se pudo enviar el correo '{}' a {}: {}", subject, to, e.getMessage());
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo enviar el correo. Intente de nuevo más tarde");
