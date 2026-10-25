@@ -1,5 +1,8 @@
 package com.vm325.inventory_back.services;
 
+import com.vm325.inventory_back.dtos.SaleItemResponseDto;
+import com.vm325.inventory_back.dtos.SaleResponseDto;
+import com.vm325.inventory_back.reports.ReportFormats;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -24,6 +27,7 @@ import java.util.Map;
 public class MailServiceImpl implements MailService {
 
     private static final Logger log = LoggerFactory.getLogger(MailServiceImpl.class);
+    private static final String BRAND = "Inventory FW.";
 
     private final JavaMailSender mailSender;
 
@@ -68,8 +72,34 @@ public class MailServiceImpl implements MailService {
         send(to, "Restablece tu contraseña", "Recuperación de contraseña", name, body);
     }
 
+    @Override
+    public void sendSaleReceipt(String to, SaleResponseDto sale) {
+        StringBuilder rows = new StringBuilder();
+        for (SaleItemResponseDto item : sale.getItems()) {
+            rows.append("<tr style=\"border-bottom:1px solid #e5e7eb;\">")
+                    .append("<td style=\"padding:6px 0;\">").append(HtmlUtils.htmlEscape(item.getProductName())).append("</td>")
+                    .append("<td align=\"right\" style=\"padding:6px 0;\">").append(item.getQuantity()).append("</td>")
+                    .append("<td align=\"right\" style=\"padding:6px 0;\">").append(ReportFormats.money(item.getUnitPrice())).append("</td>")
+                    .append("<td align=\"right\" style=\"padding:6px 0;\">").append(ReportFormats.money(item.getSubtotal())).append("</td>")
+                    .append("</tr>");
+        }
+        String body = render("receipt", Map.of(
+                "saleId", String.valueOf(sale.getSalesId()),
+                "date", sale.getDate().format(ReportFormats.DATE_TIME),
+                "employee", sale.getEmployeeUsername(),
+                "rows", rows.toString(),
+                "total", ReportFormats.money(sale.getTotal())), "rows");
+        String name = sale.getCustomerName() == null || sale.getCustomerName().isBlank() ? "cliente" : sale.getCustomerName();
+        send(to, "Recibo de tu compra No. " + sale.getSalesId(), "Recibo de compra", name, body,
+                "Gracias por tu compra. " + BRAND);
+    }
+
     private void send(String to, String subject, String title, String name, String body) {
-        String html = render("layout", Map.of("title", title, "name", name, "body", body), "body");
+        send(to, subject, title, name, body, "Si no solicitaste esto, ignora este mensaje. " + BRAND);
+    }
+
+    private void send(String to, String subject, String title, String name, String body, String footer) {
+        String html = render("layout", Map.of("title", title, "name", name, "body", body, "footer", footer), "body");
         try {
             if (brevo != null && brevo.isEnabled()) {
                 brevo.send(from, fromName, to, subject, html);

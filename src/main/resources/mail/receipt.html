@@ -1,0 +1,16 @@
+<p style="margin:0 0 16px;">Gracias por tu compra. Este es el recibo de tu venta.</p>
+<p style="margin:0 0 4px;font-size:13px;color:#6b7280;">Venta No. {{saleId}} · {{date}}</p>
+<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Atendido por {{employee}}</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-size:14px;">
+  <tr style="border-bottom:2px solid #1f2937;">
+    <th align="left" style="padding:6px 0;">Producto</th>
+    <th align="right" style="padding:6px 0;">Cant.</th>
+    <th align="right" style="padding:6px 0;">Precio</th>
+    <th align="right" style="padding:6px 0;">Subtotal</th>
+  </tr>
+  {{rows}}
+  <tr>
+    <td colspan="3" align="right" style="padding:10px 0 0;font-weight:bold;">Total</td>
+    <td align="right" style="padding:10px 0 0;font-weight:bold;">{{total}}</td>
+  </tr>
+</table>
