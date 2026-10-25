@@ -27,7 +27,7 @@ import java.util.Map;
 public class MailServiceImpl implements MailService {
 
     private static final Logger log = LoggerFactory.getLogger(MailServiceImpl.class);
-    private static final String BRAND = "Inventory FW.";
+    private static final String BRAND = "Multiservicios Wilson.";
 
     private final JavaMailSender mailSender;
 
