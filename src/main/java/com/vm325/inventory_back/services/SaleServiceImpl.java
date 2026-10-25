@@ -20,7 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,55 +43,52 @@ public class SaleServiceImpl implements SaleService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                         "Usuario no encontrado: " + username));
 
-        // VALIDAR Y ACTUALIZAR STOCK DE CADA PRODUCTO
-        List<Product> productosActualizados = new ArrayList<>();
+        // Bloquea los productos involucrados en orden de id (evita interbloqueos
+        // entre ventas simultáneas) y valida/descuenta stock sobre esas filas.
+        Map<Long, Product> products = new HashMap<>();
+        dto.getItems().stream()
+                .map(SaleItemRequestDto::getProductId)
+                .distinct()
+                .sorted()
+                .forEach(id -> products.put(id, productRepository.findByIdForUpdate(id)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                "Producto no encontrado con id " + id))));
+
+        Sale sale = Sale.builder()
+                .employee(employee)
+                .customerName(dto.getCustomerName() == null ? null : dto.getCustomerName().trim())
+                .build();
+
+        BigDecimal total = BigDecimal.ZERO;
 
         for (SaleItemRequestDto item : dto.getItems()) {
-            Product product = productRepository.findById(item.getProductId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                            "Producto no encontrado con id " + item.getProductId()));
+            Product product = products.get(item.getProductId());
 
-            // Validar stock disponible
+            if (!product.isActive()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "El producto " + product.getName() + " está dado de baja y no se puede vender");
+            }
+            // Si el mismo producto aparece varias veces, el stock ya descontado cuenta.
             if (product.getStock() < item.getQuantity()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "Stock insuficiente para el producto: " + product.getName() +
                                 ". Stock disponible: " + product.getStock() +
                                 ", solicitado: " + item.getQuantity());
             }
+            product.setStock(product.getStock() - item.getQuantity());
 
-            // Actualizar stock (restar la cantidad vendida)
-            int nuevoStock = product.getStock() - item.getQuantity();
-            product.setStock(nuevoStock);
-            productosActualizados.add(product);
-        }
-
-        // Guardar todos los productos actualizados
-        productRepository.saveAll(productosActualizados);
-
-        // Crear la venta
-        Sale sale = Sale.builder()
-                .employee(employee)
-                .customerName(dto.getCustomerName())
-                .build();
-
-        BigDecimal total = BigDecimal.ZERO;
-
-        // Crear los detalles de la venta
-        for (SaleItemRequestDto item : dto.getItems()) {
-            Product product = productRepository.findById(item.getProductId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                            "Producto no encontrado con id " + item.getProductId()));
-
-            SaleDetail detail = SaleDetail.builder()
+            // El precio siempre es el del catálogo, no el que envíe el cliente.
+            BigDecimal unitPrice = product.getPrice();
+            sale.addDetail(SaleDetail.builder()
                     .product(product)
                     .amount(item.getQuantity())
-                    .unitPrice(item.getUnitPrice())
-                    .build();
-            sale.addDetail(detail);
-
-            total = total.add(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+                    .unitPrice(unitPrice)
+                    .build());
+            total = total.add(unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
         }
         sale.setTotal(total);
+
+        productRepository.saveAll(products.values());
 
         // Guardar la venta
         Sale savedSale = saleRepository.save(sale);

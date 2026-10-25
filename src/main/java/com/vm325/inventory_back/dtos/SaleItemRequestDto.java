@@ -18,7 +18,10 @@ public class SaleItemRequestDto {
     @Min(value = 1, message = "La cantidad debe ser al menos 1")
     private Integer quantity;
 
-    @NotNull(message = "El precio unitario es obligatorio")
+    /**
+     * Informativo y opcional: el precio de venta lo fija siempre el servidor
+     * con el precio vigente del producto, nunca el cliente.
+     */
     @DecimalMin(value = "0.0", inclusive = true, message = "El precio no puede ser negativo")
     private BigDecimal unitPrice;
 }

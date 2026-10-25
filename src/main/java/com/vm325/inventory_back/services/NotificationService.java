@@ -26,7 +26,9 @@ public interface NotificationService {
                                     Long relatedEntityId,
                                     RoleList recipientRole);
 
-    List<NotificationResponseDto> findAll(Boolean read);
+    /** Notificaciones visibles para el rol indicado (las dirigidas a otro rol no se devuelven). */
+    List<NotificationResponseDto> findAll(Boolean read, RoleList viewerRole);
 
-    NotificationResponseDto markAsRead(Long id);
+    /** Marca como leída; si no está dirigida a ese rol responde como si no existiera (404). */
+    NotificationResponseDto markAsRead(Long id, RoleList viewerRole);
 }

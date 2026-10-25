@@ -37,10 +37,10 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public List<NotificationResponseDto> findAll(Boolean read) {
+    public List<NotificationResponseDto> findAll(Boolean read, RoleList viewerRole) {
         List<Notification> notifications = (read == null)
-                ? notificationRepository.findAllByOrderByCreatedAtDesc()
-                : notificationRepository.findByReadOrderByCreatedAtDesc(read);
+                ? notificationRepository.findVisibleTo(viewerRole)
+                : notificationRepository.findVisibleToByRead(viewerRole, read);
 
         return notifications.stream()
                 .map(this::toDto)
@@ -48,8 +48,9 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public NotificationResponseDto markAsRead(Long id) {
+    public NotificationResponseDto markAsRead(Long id, RoleList viewerRole) {
         Notification notification = notificationRepository.findById(id)
+                .filter(n -> n.getRecipientRole() == null || n.getRecipientRole() == viewerRole)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Notificación no encontrada con id " + id));
 

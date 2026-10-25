@@ -1,6 +1,7 @@
 package com.vm325.inventory_back.repositories;
 
 import com.vm325.inventory_back.entities.User;
+import com.vm325.inventory_back.enums.RoleList;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -11,4 +12,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByUserName(String userName);
     boolean existsByUserName(String userName);
+    Optional<User> findByEmailIgnoreCase(String email);
+    boolean existsByEmailIgnoreCase(String email);
+    long countByRole_NameAndActiveTrue(RoleList name);
 }

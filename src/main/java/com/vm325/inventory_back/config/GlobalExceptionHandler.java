@@ -1,6 +1,9 @@
 package com.vm325.inventory_back.config;
 
 import com.vm325.inventory_back.dtos.ApiMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -12,14 +15,17 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Objects;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiMessage> handValidationException(MethodArgumentNotValidException ex){
-        String errorMessage = Objects.requireNonNull(ex.getBindingResult().getFieldError()).getDefaultMessage();
+        String errorMessage = ex.getBindingResult().getFieldError() != null
+                ? ex.getBindingResult().getFieldError().getDefaultMessage()
+                : "Solicitud inválida";
         return ResponseEntity.badRequest().body(new ApiMessage(errorMessage));
     }
 
@@ -64,9 +70,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiMessage("No autenticado"));
     }
 
+    // Una restricción de la BD (unicidad, FK) que no se anticipó en el servicio
+    // es un conflicto con los datos existentes, no un fallo interno.
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiMessage> handleDataIntegrity(DataIntegrityViolationException ex){
+        log.warn("Violación de integridad de datos: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiMessage("La operación entra en conflicto con datos existentes"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiMessage> handleGeneralException(Exception ex){
-        String errorMessage = ex.getMessage();
-        return ResponseEntity.internalServerError().body(new ApiMessage(errorMessage));
+        // El detalle va al log; al cliente no se le filtran mensajes internos.
+        log.error("Error no controlado", ex);
+        return ResponseEntity.internalServerError().body(new ApiMessage("Error interno del servidor"));
     }
 }
