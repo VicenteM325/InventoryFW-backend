@@ -40,6 +40,9 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-no-reply@inventoryfw.local}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      BUSINESS_NAME: ${BUSINESS_NAME:-Multiservicios Wilson}
+      BUSINESS_PHONE: ${BUSINESS_PHONE:-}
     ports:
       - "8080:8080"
     depends_on:

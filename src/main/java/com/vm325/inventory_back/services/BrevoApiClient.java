@@ -10,6 +10,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,11 +39,21 @@ public class BrevoApiClient {
 
     /** Envía un correo HTML. Lanza IOException si Brevo no responde o rechaza el envío. */
     public void send(String fromEmail, String fromName, String to, String subject, String html) throws IOException {
-        String json = mapper.writeValueAsString(Map.of(
-                "sender", Map.of("name", fromName, "email", fromEmail),
-                "to", List.of(Map.of("email", to)),
-                "subject", subject,
-                "htmlContent", html));
+        send(fromEmail, fromName, to, subject, html, null);
+    }
+
+    /** Igual que {@link #send(String, String, String, String, String)}, con dirección de respuesta opcional. */
+    public void send(String fromEmail, String fromName, String to, String subject, String html, String replyTo)
+            throws IOException {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sender", Map.of("name", fromName, "email", fromEmail));
+        payload.put("to", List.of(Map.of("email", to)));
+        payload.put("subject", subject);
+        payload.put("htmlContent", html);
+        if (replyTo != null && !replyTo.isBlank()) {
+            payload.put("replyTo", Map.of("email", replyTo));
+        }
+        String json = mapper.writeValueAsString(payload);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(apiUrl))
                 .timeout(TIMEOUT)

@@ -138,4 +138,69 @@ class MailServiceImplTest {
         assertTrue(content.contains("Gracias por tu compra"));
         assertFalse(content.contains("ignora este mensaje"), "el pie de seguridad no aplica a un recibo");
     }
+
+    private static MailService.SupplierOrder order() {
+        return new MailService.SupplierOrder("ventas@tigo.com", "Tigo <S.A.>", "Funda <b>x</b>", "750100",
+                20, 3, 3);
+    }
+
+    @Test
+    void supplierOrderPreviewHasRecipientSubjectQuantityAndEscapedValues() {
+        ReflectionTestUtils.setField(mailService, "businessName", "Multiservicios Wilson");
+        ReflectionTestUtils.setField(mailService, "businessPhone", "5555-1234");
+
+        MailService.RenderedMail mail = mailService.previewSupplierOrder(order());
+
+        assertEquals("ventas@tigo.com", mail.to());
+        assertEquals("Pedido de reposición: Funda <b>x</b> (20 unidades)", mail.subject());
+        assertTrue(mail.html().contains("20 unidades"));
+        assertTrue(mail.html().contains("750100"));
+        assertTrue(mail.html().contains("Funda &lt;b&gt;x&lt;/b&gt;"), "el producto se escapa");
+        assertTrue(mail.html().contains("Tigo &lt;S.A.&gt;"), "el proveedor se escapa");
+        assertTrue(mail.html().contains("Tel. 5555-1234"));
+        assertFalse(mail.html().contains("{{"), "no deben quedar marcadores sin reemplazar");
+        assertFalse(mail.html().contains("ignora este mensaje"));
+        verify(sender, never()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void supplierOrderIsSentWithReplyToTheBusiness() throws Exception {
+        ReflectionTestUtils.setField(mailService, "businessName", "Multiservicios Wilson");
+        ReflectionTestUtils.setField(mailService, "businessPhone", "");
+        ReflectionTestUtils.setField(mailService, "replyTo", "dueno@gmail.com");
+
+        mailService.sendSupplierOrder(order());
+
+        MimeMessage message = sent();
+        assertEquals("ventas@tigo.com", message.getRecipients(Message.RecipientType.TO)[0].toString());
+        assertEquals("dueno@gmail.com", message.getReplyTo()[0].toString());
+        assertFalse(((String) message.getContent()).contains("Tel."));
+    }
+
+    @Test
+    void supplierOrderRepliesToTheSenderWhenNoReplyToIsConfigured() throws Exception {
+        ReflectionTestUtils.setField(mailService, "businessName", "Multiservicios Wilson");
+        ReflectionTestUtils.setField(mailService, "businessPhone", "");
+
+        mailService.sendSupplierOrder(order());
+
+        assertEquals("no-reply@test.local", sent().getReplyTo()[0].toString());
+    }
+
+    @Test
+    void supplierOrderViaBrevoCarriesReplyTo() throws Exception {
+        BrevoApiClient brevo = mock(BrevoApiClient.class);
+        when(brevo.isEnabled()).thenReturn(true);
+        ReflectionTestUtils.setField(mailService, "brevo", brevo);
+        ReflectionTestUtils.setField(mailService, "fromName", "Multiservicios Wilson");
+        ReflectionTestUtils.setField(mailService, "businessName", "Multiservicios Wilson");
+        ReflectionTestUtils.setField(mailService, "businessPhone", "");
+        ReflectionTestUtils.setField(mailService, "replyTo", "dueno@gmail.com");
+
+        mailService.sendSupplierOrder(order());
+
+        verify(brevo).send(eq("no-reply@test.local"), eq("Multiservicios Wilson"), eq("ventas@tigo.com"),
+                contains("Pedido de reposición"), contains("20 unidades"), eq("dueno@gmail.com"));
+        verify(sender, never()).send(any(MimeMessage.class));
+    }
 }

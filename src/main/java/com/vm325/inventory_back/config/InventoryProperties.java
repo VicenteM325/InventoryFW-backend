@@ -19,7 +19,7 @@ public class InventoryProperties {
 
     /**
      * Minimum stock threshold per product model. When a sale leaves a
-     * product's stock strictly below this value, the system must flag it
+     * product's stock at or below this value, the system must flag it
      * (StockAlert) and notify the responsible staff. Defaults to 2, per the
      * business rule documented in the Fase 1 BPM analysis.
      */

@@ -100,8 +100,8 @@ public class SaleServiceImpl implements SaleService {
         for (SaleDetail detail : savedSale.getDetails()) {
             Product product = detail.getProduct();
 
-            // Verificar si el stock está por debajo del mínimo propio del producto
-            if (product.getStock() < product.getMinStock()) {
+            // Alerta cuando el stock llega al mínimo propio del producto o baja de él
+            if (StockStatusCalculator.isAtOrBelowMinimum(product.getStock(), product.getMinStock())) {
                 boolean alreadyPending = !stockAlertRepository
                         .findByProduct_ProductIdAndStatus(product.getProductId(), StockAlertStatus.PENDIENTE)
                         .isEmpty();
@@ -117,7 +117,8 @@ public class SaleServiceImpl implements SaleService {
                     if (product.getStock() > 0) {
                         notificationService.notify(
                                 NotificationType.STOCK_BAJO,
-                                "Stock bajo: " + product.getName() + " quedó con " + product.getStock() + " unidades",
+                                "Stock bajo: " + product.getName() + " quedó con " + product.getStock()
+                                        + " unidades (mínimo " + product.getMinStock() + ")",
                                 "StockAlert",
                                 savedAlert.getStockAlertId(),
                                 null

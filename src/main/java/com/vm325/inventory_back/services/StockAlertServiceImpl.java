@@ -40,13 +40,23 @@ public class StockAlertServiceImpl implements StockAlertService {
         return toDto(stockAlertRepository.save(alert));
     }
 
+    @Override
+    public StockAlertResponseDto toResponse(StockAlert alert) {
+        return toDto(alert);
+    }
+
     private StockAlertResponseDto toDto(StockAlert alert) {
         var supplier = alert.getProduct().getSupplier();
         return StockAlertResponseDto.builder()
                 .stockAlertId(alert.getStockAlertId())
                 .productId(alert.getProduct().getProductId())
                 .productName(alert.getProduct().getName())
+                .supplierId(supplier != null ? supplier.getSupplierId() : null)
                 .supplierName(supplier != null ? supplier.getName() : null)
+                .supplierEmail(supplier != null ? supplier.getEmail() : null)
+                .minStock(alert.getProduct().getMinStock())
+                .orderedQuantity(alert.getOrderedQuantity())
+                .orderedAt(alert.getOrderedAt())
                 .stockAtAlert(alert.getStockAtAlert())
                 .status(alert.getStatus())
                 .createdAt(alert.getCreatedAt())

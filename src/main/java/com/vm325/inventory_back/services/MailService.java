@@ -15,4 +15,19 @@ public interface MailService {
 
     /** Recibo de una venta, para el correo que dejó el cliente. */
     void sendSaleReceipt(String to, SaleResponseDto sale);
+
+    /** Datos de un pedido de reposición a un proveedor. */
+    record SupplierOrder(String to, String supplierName, String productName, String barcode,
+                         int quantity, int currentStock, int minStock) {
+    }
+
+    /** Correo ya armado (destinatario, asunto y HTML), tal como se enviará. */
+    record RenderedMail(String to, String subject, String html) {
+    }
+
+    /** Arma el correo de pedido sin enviarlo: sirve de vista previa. */
+    RenderedMail previewSupplierOrder(SupplierOrder order);
+
+    /** Envía el pedido al proveedor; las respuestas llegan al correo del negocio (Reply-To). */
+    void sendSupplierOrder(SupplierOrder order);
 }
