@@ -39,6 +39,7 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-no-reply@inventoryfw.local}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
     ports:
       - "8080:8080"
     depends_on:
