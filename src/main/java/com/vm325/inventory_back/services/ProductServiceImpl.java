@@ -5,6 +5,7 @@ import com.vm325.inventory_back.dtos.ProductRequestDto;
 import com.vm325.inventory_back.dtos.ProductResponseDto;
 import com.vm325.inventory_back.entities.Product;
 import com.vm325.inventory_back.entities.Supplier;
+import com.vm325.inventory_back.enums.NotificationType;
 import com.vm325.inventory_back.repositories.ProductRepository;
 import com.vm325.inventory_back.repositories.SupplierRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class ProductServiceImpl implements ProductService {
     private final SupplierRepository supplierRepository;
     private final StockStatusCalculator stockStatusCalculator;
     private final InventoryProperties inventoryProperties;
+    private final NotificationService notificationService;
 
     @Override
     public ProductResponseDto create(ProductRequestDto dto) {
@@ -79,13 +81,18 @@ public class ProductServiceImpl implements ProductService {
         Product product = getProductOrThrow(id);
         product.setActive(false);
         productRepository.save(product);
+        notificationService.notify(NotificationType.PRODUCTO_ESTADO,
+                "Producto desactivado: " + product.getName(), "Product", product.getProductId(), null);
     }
 
     @Override
     public ProductResponseDto activate(Long id) {
         Product product = getProductOrThrow(id);
         product.setActive(true);
-        return toResponseDto(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        notificationService.notify(NotificationType.PRODUCTO_ESTADO,
+                "Producto activado: " + saved.getName(), "Product", saved.getProductId(), null);
+        return toResponseDto(saved);
     }
 
     private Supplier resolveSupplier(Long supplierId) {

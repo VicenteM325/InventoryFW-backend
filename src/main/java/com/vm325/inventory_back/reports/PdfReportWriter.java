@@ -20,11 +20,10 @@ import java.util.List;
 import static com.vm325.inventory_back.reports.ReportTheme.*;
 
 /**
- * Exportador a PDF: hoja carta apaisada con cabecera de marca, tarjetas de indicadores,
- * gráficos de barras y tablas con anchos proporcionales, filas alternadas, texto que
- * se ajusta en varias líneas, estados en color, fila de totales y paginación
- * ("Página X de Y"). No sabe nada de ventas ni de inventario: solo dibuja un
- * {@link ReportDocument}.
+ * Exportador a PDF: hoja carta apaisada con cabecera de marca, tarjetas de indicadores y
+ * tablas con anchos proporcionales, filas alternadas, texto que se ajusta en varias líneas,
+ * estados en color, fila de totales y paginación ("Página X de Y"). No sabe nada de ventas
+ * ni de inventario: solo dibuja un {@link ReportDocument}.
  */
 @Component
 public class PdfReportWriter implements ReportWriter {
@@ -133,13 +132,9 @@ public class PdfReportWriter implements ReportWriter {
             for (int i = 0; i < total; i++) {
                 PDPage page = pdf.getPage(i);
                 try (PDPageContentStream footer = new PDPageContentStream(pdf, page, AppendMode.APPEND, true, true)) {
-                    footer.setStrokingColor(BORDER);
-                    footer.setLineWidth(0.6f);
-                    footer.moveTo(MARGIN, 30);
-                    footer.lineTo(PAGE.getWidth() - MARGIN, 30);
-                    footer.stroke();
                     PDPageContentStream saved = cs;
                     cs = footer;
+                    hRule(MARGIN, 30, CONTENT_WIDTH, BORDER, 0.6f);
                     text(regular, 7.5f, MARGIN, 19, MUTED, BRAND + "  |  " + doc.title());
                     textRight(regular, 7.5f, PAGE.getWidth() - MARGIN, 19, MUTED, "Página " + (i + 1) + " de " + total);
                     cs = saved;
@@ -153,7 +148,7 @@ public class PdfReportWriter implements ReportWriter {
             int n = doc.kpis().size();
             float gap = 10f;
             float cardW = (CONTENT_WIDTH - gap * (n - 1)) / n;
-            float cardH = 62f;
+            float cardH = 50f;
             ensureSpace(cardH + 14);
 
             for (int i = 0; i < n; i++) {
@@ -161,16 +156,13 @@ public class PdfReportWriter implements ReportWriter {
                 float x = MARGIN + i * (cardW + gap);
                 float top = y;
                 fillRect(x, top - cardH, cardW, cardH, CARD);
-                strokeRect(x, top - cardH, cardW, cardH, BORDER);
+                hRule(x, top, cardW, BORDER, 0.6f);
+                hRule(x, top - cardH, cardW, BORDER, 0.6f);
                 fillRect(x, top - cardH, 3.5f, cardH, ACCENT);
 
                 text(regular, 8, x + 12, top - 15, MUTED, kpi.label().toUpperCase());
                 float valueSize = fit(bold, kpi.value(), cardW - 22, 18f, 10f);
                 text(bold, valueSize, x + 12, top - 38, INK, kpi.value());
-                if (kpi.note() != null) {
-                    float noteSize = fit(regular, kpi.note(), cardW - 22, 8f, 6f);
-                    text(bold, noteSize, x + 12, top - 53, trendColor(kpi.trend()), kpi.note());
-                }
             }
             y -= cardH + 22;
         }
@@ -192,10 +184,6 @@ public class PdfReportWriter implements ReportWriter {
             fillRect(MARGIN, y - 6, 28, 2, ACCENT);
             y -= 22;
 
-            if (section.chart() != null && !section.chart().labels().isEmpty()) {
-                drawChart(section.chart());
-            }
-
             drawTable(section);
 
             if (!section.footerLines().isEmpty()) {
@@ -207,103 +195,6 @@ public class PdfReportWriter implements ReportWriter {
                 }
             }
             y -= 30;
-        }
-
-        // ---------- gráfico de barras ----------
-
-        private void drawChart(ReportChart chart) throws IOException {
-            float height = 150f;
-            ensureSpace(height + 30);
-            text(bold, 9, MARGIN, y, MUTED, chart.title());
-            y -= 10;
-
-            float gutter = 46f;
-            float plotLeft = MARGIN + gutter;
-            float plotRight = MARGIN + CONTENT_WIDTH - 6;
-            float plotTop = y;
-            float plotBottom = y - height + 22;
-            float plotH = plotTop - plotBottom;
-            float plotW = plotRight - plotLeft;
-
-            BigDecimal maxValue = chart.values().stream().max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
-            double max = niceMax(maxValue.doubleValue());
-
-            // Rejilla y eje Y
-            int ticks = tickCount(max, chart.money());
-            for (int t = 0; t <= ticks; t++) {
-                float ty = plotBottom + plotH * t / ticks;
-                cs.setStrokingColor(t == 0 ? MUTED : BORDER);
-                cs.setLineWidth(t == 0 ? 0.8f : 0.5f);
-                cs.moveTo(plotLeft, ty);
-                cs.lineTo(plotRight, ty);
-                cs.stroke();
-                textRight(regular, 7, plotLeft - 6, ty - 2.5f, MUTED, compact(max * t / ticks, chart.money()));
-            }
-
-            // Barras
-            int n = chart.values().size();
-            float slot = plotW / n;
-            float barW = Math.min(slot * 0.62f, 44f);
-            int labelEvery = Math.max(1, (int) Math.ceil(n / Math.max(1f, plotW / 46f)));
-            boolean valueLabels = n <= 14;
-
-            for (int i = 0; i < n; i++) {
-                double v = chart.values().get(i).doubleValue();
-                float barH = max <= 0 ? 0 : (float) (plotH * v / max);
-                float cx = plotLeft + slot * i + slot / 2;
-                if (barH > 0) {
-                    fillRect(cx - barW / 2, plotBottom, barW, barH, ACCENT);
-                }
-                if (valueLabels && v > 0) {
-                    textCentered(bold, 7, cx, plotBottom + barH + 3, INK, compact(v, chart.money()));
-                }
-                if (i % labelEvery == 0) {
-                    textCentered(regular, 7, cx, plotBottom - 11, MUTED, chart.labels().get(i));
-                }
-            }
-            y = plotBottom - 24;
-        }
-
-        /** Cantidad de divisiones del eje: en conteos enteros cada división debe ser un entero (no 2.5 productos). */
-        static int tickCount(double max, boolean money) {
-            for (int t : new int[]{4, 5, 3, 2}) {
-                double step = max / t;
-                if (money || Math.abs(step - Math.rint(step)) < 1e-9) {
-                    return t;
-                }
-            }
-            return 1;
-        }
-
-        /** Máximo "redondo" del eje (1, 2, 2.5, 5, 10 x 10^n) que contiene el valor. */
-        static double niceMax(double value) {
-            if (value <= 0) {
-                return 1;
-            }
-            double magnitude = Math.pow(10, Math.floor(Math.log10(value)));
-            for (double step : new double[]{1, 2, 2.5, 5, 10}) {
-                if (value <= step * magnitude) {
-                    return step * magnitude;
-                }
-            }
-            return 10 * magnitude;
-        }
-
-        static String compact(double value, boolean money) {
-            String number;
-            if (value >= 1_000_000) {
-                number = trim(value / 1_000_000) + "M";
-            } else if (value >= 1_000) {
-                number = trim(value / 1_000) + "k";
-            } else {
-                number = trim(value);
-            }
-            return money ? "Q" + number : number;
-        }
-
-        private static String trim(double v) {
-            String s = String.format(java.util.Locale.US, "%.1f", v);
-            return s.endsWith(".0") ? s.substring(0, s.length() - 2) : s;
         }
 
         // ---------- tabla ----------
@@ -359,11 +250,7 @@ public class PdfReportWriter implements ReportWriter {
                 y -= rowH;
                 index++;
             }
-            cs.setStrokingColor(BORDER);
-            cs.setLineWidth(0.6f);
-            cs.moveTo(MARGIN, y);
-            cs.lineTo(MARGIN + tableW, y);
-            cs.stroke();
+            hRule(MARGIN, y, tableW, BORDER, 0.6f);
 
             if (section.totalsRow()) {
                 drawTotals(section, cols, widths);
@@ -511,10 +398,11 @@ public class PdfReportWriter implements ReportWriter {
             cs.fill();
         }
 
-        private void strokeRect(float x, float yBottom, float w, float h, Color color) throws IOException {
+        private void hRule(float x, float yPos, float w, Color color, float lineWidth) throws IOException {
             cs.setStrokingColor(color);
-            cs.setLineWidth(0.6f);
-            cs.addRect(x, yBottom, w, h);
+            cs.setLineWidth(lineWidth);
+            cs.moveTo(x, yPos);
+            cs.lineTo(x + w, yPos);
             cs.stroke();
         }
 

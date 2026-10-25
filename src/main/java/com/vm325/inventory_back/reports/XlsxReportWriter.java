@@ -7,24 +7,8 @@ import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.ss.util.CellReference;
-import org.apache.poi.xddf.usermodel.XDDFColor;
-import org.apache.poi.xddf.usermodel.XDDFSolidFillProperties;
-import org.apache.poi.xddf.usermodel.chart.AxisCrosses;
-import org.apache.poi.xddf.usermodel.chart.AxisPosition;
-import org.apache.poi.xddf.usermodel.chart.BarDirection;
-import org.apache.poi.xddf.usermodel.chart.ChartTypes;
-import org.apache.poi.xddf.usermodel.chart.XDDFBarChartData;
-import org.apache.poi.xddf.usermodel.chart.XDDFCategoryAxis;
-import org.apache.poi.xddf.usermodel.chart.XDDFDataSource;
-import org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory;
-import org.apache.poi.xddf.usermodel.chart.XDDFNumericalDataSource;
-import org.apache.poi.xddf.usermodel.chart.XDDFValueAxis;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
-import org.apache.poi.xssf.usermodel.XSSFChart;
-import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
 import org.apache.poi.xssf.usermodel.XSSFColor;
-import org.apache.poi.xssf.usermodel.XSSFDrawing;
 import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFFormulaEvaluator;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -46,8 +30,8 @@ import java.util.Set;
 import static com.vm325.inventory_back.reports.ReportTheme.*;
 
 /**
- * Exportador a .xlsx: una hoja "Resumen" (indicadores y gráficos) y una hoja por sección con
- * encabezado de marca, valores con su tipo nativo (números, moneda, fechas) para poder
+ * Exportador a .xlsx: una hoja "Resumen" con los indicadores y una hoja por sección, con
+ * encabezado de marca, valores en su tipo nativo (números, moneda, fechas) para poder
  * ordenar y calcular, filas alternadas, filtros, panel fijo, fila de totales con fórmulas
  * SUM y configuración de impresión apaisada. No sabe nada de ventas ni de inventario.
  */
@@ -67,10 +51,8 @@ public class XlsxReportWriter implements ReportWriter {
             Styles styles = new Styles(workbook);
             Set<String> usedNames = new HashSet<>();
 
-            boolean hasSummary = !document.kpis().isEmpty()
-                    || document.sections().stream().anyMatch(s -> s.chart() != null);
             XSSFSheet summary = null;
-            if (hasSummary) {
+            if (!document.kpis().isEmpty()) {
                 summary = workbook.createSheet(uniqueName("Resumen", usedNames));
             }
 
@@ -80,7 +62,7 @@ public class XlsxReportWriter implements ReportWriter {
             }
 
             if (summary != null) {
-                writeSummary(workbook, summary, document, styles);
+                writeSummary(summary, document, styles);
             }
 
             // POI no calcula las fórmulas: se evalúan para que los totales también se vean
@@ -103,10 +85,10 @@ public class XlsxReportWriter implements ReportWriter {
         int lastCol = cols.size() - 1;
         sheet.setDisplayGridlines(false);
 
-        titleBlock(sheet, section.title(), doc.subtitle(), lastCol, st);
+        titleBlock(sheet, section.title(), doc, lastCol, st);
 
         Row header = sheet.createRow(HEADER_ROW);
-        header.setHeightInPoints(22);
+        header.setHeightInPoints(20);
         for (int c = 0; c < cols.size(); c++) {
             Cell cell = header.createCell(c);
             cell.setCellValue(cols.get(c).header());
@@ -203,122 +185,55 @@ public class XlsxReportWriter implements ReportWriter {
 
     // ---------- hoja de resumen ----------
 
-    private void writeSummary(XSSFWorkbook workbook, XSSFSheet sheet, ReportDocument doc, Styles st) {
+    private void writeSummary(XSSFSheet sheet, ReportDocument doc, Styles st) {
         sheet.setDisplayGridlines(false);
-        int kpis = doc.kpis().size();
-        int lastCol = Math.max(kpis * 2, 8) - 1;
+        titleBlock(sheet, doc.title(), doc, 1, st);
 
-        titleBlock(sheet, doc.title(), doc.subtitle(), lastCol, st);
-        for (int c = 0; c <= lastCol; c++) {
-            sheet.setColumnWidth(c, 14 * 256);
-        }
+        Row header = sheet.createRow(HEADER_ROW);
+        header.setHeightInPoints(20);
+        Cell concept = header.createCell(0);
+        concept.setCellValue("Concepto");
+        concept.setCellStyle(st.header(false));
+        Cell value = header.createCell(1);
+        value.setCellValue("Valor");
+        value.setCellStyle(st.header(true));
 
-        // Tarjetas de indicadores: cada una ocupa dos columnas y tres filas (etiqueta, valor, nota).
-        Row labels = sheet.createRow(3);
-        Row values = sheet.createRow(4);
-        Row notes = sheet.createRow(5);
-        values.setHeightInPoints(30);
-        for (int i = 0; i < kpis; i++) {
-            ReportKpi kpi = doc.kpis().get(i);
-            int c = i * 2;
-            card(sheet, labels, 3, c, kpi.label().toUpperCase(), st.kpiLabel());
-            card(sheet, values, 4, c, kpi.value(), st.kpiValue());
-            card(sheet, notes, 5, c, kpi.note() == null ? "" : kpi.note(), st.kpiNote(kpi.trend()));
-        }
-
-        int cursor = 7;
-        for (ReportSection section : doc.sections()) {
-            ReportChart chart = section.chart();
-            if (chart == null || chart.labels().isEmpty()) {
-                continue;
-            }
-            cursor = addChart(sheet, chart, cursor, lastCol, st);
-        }
-
-        printSetup(sheet, -1);
-    }
-
-    private void card(XSSFSheet sheet, Row row, int rowIndex, int col, String text, XSSFCellStyle style) {
-        Cell first = row.createCell(col);
-        first.setCellValue(text);
-        first.setCellStyle(style);
-        Cell second = row.createCell(col + 1);
-        second.setCellStyle(style);
-        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, col, col + 1));
-    }
-
-    /** Dibuja el gráfico y debajo su tabla de datos (el gráfico se alimenta de ahí). Devuelve la fila libre siguiente. */
-    private int addChart(XSSFSheet sheet, ReportChart chart, int startRow, int lastCol, Styles st) {
-        int chartRows = 18;
-        int dataTitleRow = startRow + chartRows + 1;
-        int dataFirst = dataTitleRow + 2;
-        int n = chart.labels().size();
-        int dataLast = dataFirst + n - 1;
-
-        Cell dataTitle = sheet.createRow(dataTitleRow).createCell(0);
-        dataTitle.setCellValue("Datos del gráfico: " + chart.title());
-        dataTitle.setCellStyle(st.bold());
-
-        Row head = sheet.createRow(dataTitleRow + 1);
-        Cell h0 = head.createCell(0);
-        h0.setCellValue("Etiqueta");
-        h0.setCellStyle(st.header(false));
-        Cell h1 = head.createCell(1);
-        h1.setCellValue(chart.seriesName());
-        h1.setCellStyle(st.header(true));
-
-        for (int i = 0; i < n; i++) {
-            Row row = sheet.createRow(dataFirst + i);
-            boolean zebra = i % 2 == 1;
+        int rowIndex = HEADER_ROW + 1;
+        for (ReportKpi kpi : doc.kpis()) {
+            Row row = sheet.createRow(rowIndex++);
             Cell label = row.createCell(0);
-            label.setCellValue(chart.labels().get(i));
-            label.setCellStyle(st.data(ColumnType.TEXT, zebra, null));
-            Cell value = row.createCell(1);
-            value.setCellValue(chart.values().get(i).doubleValue());
-            value.setCellStyle(st.data(chart.money() ? ColumnType.MONEY : ColumnType.INTEGER, zebra, null));
+            label.setCellValue(kpi.label());
+            label.setCellStyle(st.data(ColumnType.TEXT, false, null));
+            Cell number = row.createCell(1);
+            number.setCellValue(kpi.value());
+            number.setCellStyle(st.data(ColumnType.INTEGER, false, null));
         }
-
-        XSSFDrawing drawing = sheet.createDrawingPatriarch();
-        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, 0, startRow, lastCol + 1, startRow + chartRows);
-        XSSFChart xssfChart = drawing.createChart(anchor);
-        xssfChart.setTitleText(chart.title());
-        xssfChart.setTitleOverlay(false);
-
-        XDDFCategoryAxis bottom = xssfChart.createCategoryAxis(AxisPosition.BOTTOM);
-        XDDFValueAxis left = xssfChart.createValueAxis(AxisPosition.LEFT);
-        left.setCrosses(AxisCrosses.AUTO_ZERO);
-
-        XDDFDataSource<String> categories = XDDFDataSourcesFactory.fromStringCellRange(sheet,
-                new CellRangeAddress(dataFirst, dataLast, 0, 0));
-        XDDFNumericalDataSource<Double> numbers = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
-                new CellRangeAddress(dataFirst, dataLast, 1, 1));
-
-        XDDFBarChartData data = (XDDFBarChartData) xssfChart.createData(ChartTypes.BAR, bottom, left);
-        data.setBarDirection(BarDirection.COL);
-        XDDFBarChartData.Series series = (XDDFBarChartData.Series) data.addSeries(categories, numbers);
-        series.setTitle(chart.seriesName(), new CellReference(sheet.getSheetName(), dataTitleRow + 1, 1, true, true));
-        series.setFillProperties(new XDDFSolidFillProperties(XDDFColor.from(new byte[]{
-                (byte) ACCENT.getRed(), (byte) ACCENT.getGreen(), (byte) ACCENT.getBlue()})));
-        xssfChart.plot(data);
-
-        return dataLast + 3;
+        sheet.setColumnWidth(0, 30 * 256);
+        sheet.setColumnWidth(1, 20 * 256);
+        printSetup(sheet, HEADER_ROW);
     }
 
     // ---------- comunes ----------
 
-    private void titleBlock(XSSFSheet sheet, String title, String subtitle, int lastCol, Styles st) {
+    private void titleBlock(XSSFSheet sheet, String title, ReportDocument doc, int lastColumn, Styles st) {
         Row titleRow = sheet.createRow(0);
         titleRow.setHeightInPoints(30);
+        int lastCol = Math.max(lastColumn, 1);
         for (int c = 0; c <= lastCol; c++) {
             titleRow.createCell(c).setCellStyle(st.title());
         }
         titleRow.getCell(0).setCellValue(title);
-        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, Math.max(lastCol, 1)));
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, lastCol));
 
-        Row sub = sheet.createRow(1);
-        Cell cell = sub.createCell(0);
-        cell.setCellValue(subtitle == null ? BRAND : BRAND + "  |  " + subtitle);
-        cell.setCellStyle(st.muted());
+        Cell sub = sheet.createRow(1).createCell(0);
+        sub.setCellValue(doc.subtitle() == null ? BRAND : BRAND + "  |  " + doc.subtitle());
+        sub.setCellStyle(st.muted());
+
+        String generated = "Generado: " + doc.generatedAt().format(ReportFormats.DATE_TIME)
+                + (doc.generatedBy() == null || doc.generatedBy().isBlank() ? "" : "  |  Por: " + doc.generatedBy());
+        Cell gen = sheet.createRow(2).createCell(0);
+        gen.setCellValue(generated);
+        gen.setCellStyle(st.muted());
     }
 
     private void printSetup(XSSFSheet sheet, int repeatHeaderRow) {
@@ -422,28 +337,6 @@ public class XlsxReportWriter implements ReportWriter {
                 format(s, type);
                 return s;
             });
-        }
-
-        XSSFCellStyle kpiLabel() {
-            return cache.computeIfAbsent("kpiLabel", k -> kpiBase(font(8, true, MUTED), true));
-        }
-
-        XSSFCellStyle kpiValue() {
-            return cache.computeIfAbsent("kpiValue", k -> kpiBase(font(18, true, INK), false));
-        }
-
-        XSSFCellStyle kpiNote(ReportKpi.Trend trend) {
-            return cache.computeIfAbsent("kpiNote" + trend, k -> kpiBase(font(9, true, trendColor(trend)), false));
-        }
-
-        private XSSFCellStyle kpiBase(XSSFFont font, boolean top) {
-            XSSFCellStyle s = base();
-            s.setFont(font);
-            fill(s, CARD);
-            s.setAlignment(HorizontalAlignment.LEFT);
-            s.setVerticalAlignment(VerticalAlignment.CENTER);
-            s.setIndention((short) 1);
-            return s;
         }
 
         private XSSFCellStyle base() {

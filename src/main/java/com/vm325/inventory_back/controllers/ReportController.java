@@ -60,9 +60,8 @@ public class ReportController {
             @RequestParam(defaultValue = "PDF") String format,
             Authentication authentication) {
 
-        LocalDate today = LocalDate.now();
-        LocalDate effectiveFrom = (from != null) ? from : today;
-        LocalDate effectiveTo = (to != null) ? to : today;
+        LocalDate effectiveTo = (to != null) ? to : LocalDate.now();
+        LocalDate effectiveFrom = (from != null) ? from : effectiveTo.minusDays(29);
 
         ReportFormat reportFormat = parseFormat(format);
         byte[] report = salesReportService.generate(effectiveFrom, effectiveTo, reportFormat, authentication.getName());

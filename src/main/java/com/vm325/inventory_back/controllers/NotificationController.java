@@ -26,6 +26,12 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.findAll(read, roleOf(authentication)));
     }
 
+    @PatchMapping("/read-all")
+    public ResponseEntity<Void> markAllAsRead(Authentication authentication) {
+        notificationService.markAllAsRead(roleOf(authentication));
+        return ResponseEntity.noContent().build();
+    }
+
     @PatchMapping("/{id}/read")
     public ResponseEntity<NotificationResponseDto> markAsRead(@PathVariable Long id, Authentication authentication) {
         return ResponseEntity.ok(notificationService.markAsRead(id, roleOf(authentication)));

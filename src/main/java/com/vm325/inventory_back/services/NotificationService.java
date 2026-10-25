@@ -29,6 +29,9 @@ public interface NotificationService {
     /** Notificaciones visibles para el rol indicado (las dirigidas a otro rol no se devuelven). */
     List<NotificationResponseDto> findAll(Boolean read, RoleList viewerRole);
 
+    /** Marca como leídas todas las pendientes visibles para ese rol y devuelve cuántas eran. */
+    int markAllAsRead(RoleList viewerRole);
+
     /** Marca como leída; si no está dirigida a ese rol responde como si no existiera (404). */
     NotificationResponseDto markAsRead(Long id, RoleList viewerRole);
 }

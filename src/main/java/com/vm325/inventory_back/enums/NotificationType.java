@@ -6,5 +6,7 @@ package com.vm325.inventory_back.enums;
  */
 public enum NotificationType {
     STOCK_BAJO,
-    DOCUMENTO_GENERADO
+    DOCUMENTO_GENERADO,
+    AGOTADO,
+    PRODUCTO_ESTADO
 }
