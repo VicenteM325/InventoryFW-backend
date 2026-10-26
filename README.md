@@ -61,3 +61,12 @@ En GitHub: environment `production` (solo rama `main`) con el secreto `RAILWAY_T
 - Memoria: heap fijo de 512 MB con SerialGC (ver `ENTRYPOINT` del `Dockerfile`), y las fotos de DPI se procesan a 2560 px como máximo (`ImageCropServiceImpl`). En pruebas con 1 vCPU: ~230 MiB en reposo y ~720 MiB de pico con dos fotocopias simultáneas a partir de fotos originales de 12 MP.
 
 La migración V2 crea el usuario `admin` con una contraseña que es pública en el historial del repositorio. En cada base de datos nueva, crear de inmediato otro Administrador desde la pantalla de Usuarios y desactivar `admin`.
+
+
+
+
+
+# InventoryFW
+Inventory built with Tailwind + React as the frontend and Spring Boot and Java as the backend
+## Manual de Usuario
+[Manual de Usuario](https://scribehow.com/o/YKnGuif3TM2hFmaEspMEdQ/viewer/Managing_Inventory_and_Sales_at_Multiservicios_Wilson__UzU__U-NQQiRFGiAnrS06w)
