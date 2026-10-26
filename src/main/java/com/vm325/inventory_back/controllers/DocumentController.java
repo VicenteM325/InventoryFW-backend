@@ -2,26 +2,35 @@ package com.vm325.inventory_back.controllers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vm325.inventory_back.dtos.ApiMessage;
+import com.vm325.inventory_back.imaging.CropRegion;
 import com.vm325.inventory_back.imaging.DetectedCorners;
+import com.vm325.inventory_back.imaging.DocumentType;
 import com.vm325.inventory_back.imaging.EnhancementSettings;
 import com.vm325.inventory_back.imaging.OutputFormat;
 import com.vm325.inventory_back.services.DetectCornersResult;
 import com.vm325.inventory_back.services.DpiDocumentService;
+import com.vm325.inventory_back.services.IdPhotoDocumentService;
+import com.vm325.inventory_back.services.IdPhotoSpecResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -31,6 +40,7 @@ public class DocumentController {
     private static final DateTimeFormatter FILENAME_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     private final DpiDocumentService dpiDocumentService;
+    private final IdPhotoDocumentService idPhotoDocumentService;
     private final ObjectMapper objectMapper;
 
     // Proceso 2 (BPM): generación automática de fotocopia de DPI a partir
@@ -100,6 +110,115 @@ public class DocumentController {
 
         String label = "front".equalsIgnoreCase(side) ? "anverso" : "reverso";
         return ResponseEntity.ok(dpiDocumentService.detectCorners(image, label, rotation));
+    }
+
+    // Medidas y capacidad de cada hoja de fotos: el frontend las usa para
+    // dibujar el marco de recorte y limitar las copias sin duplicar constantes.
+    @PreAuthorize("hasAnyRole('ADMIN','EMPLOYEE')")
+    @GetMapping("/id-photo/specs")
+    public ResponseEntity<List<IdPhotoSpecResponse>> idPhotoSpecs() {
+        return ResponseEntity.ok(idPhotoDocumentService.listSpecs());
+    }
+
+    // Proceso 3 (BPM): hoja 4x6 con varias copias de una foto tamaño cédula
+    // o pasaporte, recortada con el marco que eligió el Encargado.
+    @PreAuthorize("hasAnyRole('ADMIN','EMPLOYEE')")
+    @PostMapping(value = "/id-photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<byte[]> generateIdPhotoDocument(
+            @RequestParam("image") MultipartFile image,
+            @RequestParam("type") String type,
+            @RequestParam(required = false) Integer copies,
+            @RequestParam(defaultValue = "PDF") String format,
+            @RequestParam(required = false) String clientName,
+            @RequestParam(defaultValue = "0") int brightness,
+            @RequestParam(defaultValue = "0") int contrast,
+            @RequestParam(defaultValue = "15") int sharpness,
+            @RequestParam(defaultValue = "0") int rotation,
+            @RequestParam(required = false) Double cropX,
+            @RequestParam(required = false) Double cropY,
+            @RequestParam(required = false) Double cropWidth,
+            @RequestParam(required = false) Double cropHeight) {
+
+        DocumentType documentType = parseDocumentType(type);
+        OutputFormat outputFormat = parseFormat(format);
+        byte[] document = idPhotoDocumentService.generate(documentType, image, copies, outputFormat, clientName,
+                parseSettings(brightness, contrast, sharpness), rotation,
+                parseCropRegion(cropX, cropY, cropWidth, cropHeight));
+
+        String filename = "foto_" + documentType.name().toLowerCase() + "_"
+                + LocalDateTime.now().format(FILENAME_TIMESTAMP) + "." + outputFormat.getFileExtension();
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(outputFormat.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(document);
+    }
+
+    // Vista previa de una sola copia (recorte + ajuste) con el mismo
+    // procesamiento que generateIdPhotoDocument.
+    @PreAuthorize("hasAnyRole('ADMIN','EMPLOYEE')")
+    @PostMapping(value = "/id-photo/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> previewIdPhoto(
+            @RequestParam("image") MultipartFile image,
+            @RequestParam("type") String type,
+            @RequestParam(defaultValue = "0") int brightness,
+            @RequestParam(defaultValue = "0") int contrast,
+            @RequestParam(defaultValue = "15") int sharpness,
+            @RequestParam(defaultValue = "0") int rotation,
+            @RequestParam(required = false) Double cropX,
+            @RequestParam(required = false) Double cropY,
+            @RequestParam(required = false) Double cropWidth,
+            @RequestParam(required = false) Double cropHeight) {
+
+        byte[] png = idPhotoDocumentService.previewImage(parseDocumentType(type), image,
+                parseSettings(brightness, contrast, sharpness), rotation,
+                parseCropRegion(cropX, cropY, cropWidth, cropHeight));
+
+        return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(png);
+    }
+
+    // Un parámetro numérico que no se puede convertir (p.ej. cropX=abc) es un
+    // error del cliente; sin esto el handler genérico lo respondería como 500.
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiMessage> invalidParameter(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.badRequest().body(new ApiMessage("Parámetro inválido: " + e.getName()));
+    }
+
+    private DocumentType parseDocumentType(String type) {
+        try {
+            DocumentType documentType = DocumentType.valueOf(type.trim().toUpperCase());
+            if (documentType == DocumentType.DPI) {
+                throw new IllegalArgumentException(type);
+            }
+            return documentType;
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Tipo de foto no soportado: " + type + " (use CEDULA o PASAPORTE)");
+        }
+    }
+
+    private EnhancementSettings parseSettings(int brightness, int contrast, int sharpness) {
+        try {
+            return new EnhancementSettings(brightness, contrast, sharpness);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    // Los cuatro valores del marco o ninguno (sin marco = recorte centrado).
+    private CropRegion parseCropRegion(Double x, Double y, Double width, Double height) {
+        if (x == null && y == null && width == null && height == null) {
+            return null;
+        }
+        if (x == null || y == null || width == null || height == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El recorte requiere cropX, cropY, cropWidth y cropHeight");
+        }
+        try {
+            return new CropRegion(x, y, width, height);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     private DetectedCorners parseCorners(String json) {

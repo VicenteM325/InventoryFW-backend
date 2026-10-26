@@ -48,4 +48,21 @@ public interface ImageCropService {
      * documento final.
      */
     NormalizedImageWithCorners detectCorners(byte[] rawImage, CropSpec spec, int rotationOverride);
+
+    /**
+     * Igual que {@link #cropAndFit} hasta dejar la imagen derecha y girada,
+     * pero en vez de buscar una tarjeta recorta la región que eligió el
+     * usuario (el marco de proporción fija de una foto de persona). La
+     * región se ajusta a la proporción de {@code spec} sin estirarla, se
+     * reescala a su resolución objetivo (reduciendo en pasos para no generar
+     * aliasing en el rostro) y recibe el ajuste de {@code settings}.
+     *
+     * @param region región en fracciones de la imagen derecha y girada, o
+     *               {@code null} para recortar centrado.
+     * @throws IllegalArgumentException si los bytes no son una imagen
+     *                                  decodificable o {@code rotationOverride}
+     *                                  no es 0, 90, 180 o 270.
+     */
+    BufferedImage cropRegionAndFit(byte[] rawImage, CropSpec spec, EnhancementSettings settings, int rotationOverride,
+                                    CropRegion region);
 }
