@@ -1,6 +1,6 @@
 # InventoryFW — Backend
 
-API REST de Multiservicios Wilson: inventario, ventas, alertas de stock, notificaciones, reportes (PDF/XLSX) y fotocopia de DPI (PDF/DOCX).
+API REST de Multiservicios Wilson: inventario, ventas, alertas de stock, notificaciones, reportes (PDF/XLSX), fotocopia de DPI y hojas de fotos tamaño cédula/pasaporte (PDF/DOCX).
 Spring Boot 3.5 · Java 25 · PostgreSQL · Flyway · JWT en cookie HttpOnly.
 
 Frontend: [InventoryFW-frontend](https://github.com/VicenteM325/InventoryFW-frontend).
@@ -35,6 +35,14 @@ DB_URL=jdbc:postgresql://localhost:5433/inventory_db DB_PASSWORD=<la de .env> JW
 ```
 
 El esquema lo maneja Flyway (`src/main/resources/db/migration`). Nunca editar una migración ya aplicada: Flyway valida su checksum. Los cambios van en una migración nueva (`V7__...sql`).
+
+## Fotos tamaño cédula y pasaporte
+
+`/api/documents/id-photo` recorta una foto con el marco que elige el Encargado (`cropX/cropY/cropWidth/cropHeight`, fracciones de la foto ya derecha y girada) y la repite en una hoja de papel fotográfico 4×6 in. `/id-photo/preview` devuelve una sola copia en PNG y `/id-photo/specs` informa medidas y capacidad de cada tipo; el frontend las toma de ahí.
+
+- Medidas de foto (cédula 3.1 × 3.9 cm, pasaporte 5 × 5 cm), tamaño de hoja, margen (~3 mm), separación entre copias y dpi viven solo en `DocumentLayoutRegistry`. La capacidad sale de esas medidas (hoy 9 de cédula y 2 de pasaporte): con un margen mayor a ~10 pt la cédula baja de 3 a 2 columnas.
+- El PDF dibuja la misma imagen una vez por copia, con un borde gris fino como guía de corte. El Word usa una tabla de celdas de tamaño fijo y no se pudo verificar en Word en las pruebas (solo su estructura XML), así que conviene abrir un `.docx` generado antes de depender de él.
+- Hay que imprimir al 100 % en papel 4×6 in (sin "ajustar a la página") para que la foto mida lo que dice.
 
 ## CI/CD
 
